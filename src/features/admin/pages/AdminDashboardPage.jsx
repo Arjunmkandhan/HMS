@@ -1,3 +1,7 @@
+// Admin dashboard page:
+// This is the central control panel for the HMS website.
+// It loads doctors, patients, appointments, and bed data, powers the admin search bar,
+// and renders management sections for doctors, patients, appointments, beds, billing, and inventory.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -60,6 +64,7 @@ const DAY_OPTIONS = [
 ];
 
 function formatTimeLabel(timeValue) {
+  // Converts 24-hour HTML input values into the 12-hour labels shown in saved time slots.
   if (!timeValue) {
     return "";
   }
@@ -74,6 +79,7 @@ function formatTimeLabel(timeValue) {
 }
 
 function normalizePhoneNumber(phoneValue) {
+  // Strips non-digit characters so phone numbers stay clean before saving.
   return String(phoneValue || "").replace(/\D/g, "").slice(0, 10);
 }
 
@@ -114,6 +120,7 @@ const navigationItems = [
 ];
 
 function formatDisplayDate(dateValue) {
+  // Shared date formatter used across tables and analytics cards.
   if (!dateValue) {
     return "Not set";
   }
@@ -125,6 +132,7 @@ function formatDisplayDate(dateValue) {
 }
 
 function formatSpecialization(specialization) {
+  // Doctors may store specialization as an array, so this helper produces one clean label for display.
   if (Array.isArray(specialization)) {
     return specialization.join(", ");
   }
@@ -133,6 +141,7 @@ function formatSpecialization(specialization) {
 }
 
 function getDoctorDepartment(doctor) {
+  // The appointment form uses the doctor's first specialization as the department name.
   if (!doctor) {
     return "";
   }
@@ -143,10 +152,12 @@ function getDoctorDepartment(doctor) {
 }
 
 function getPatientDisplayName(patient) {
+  // Patients may use either `name` or `fullName` depending on how the record was created.
   return patient?.name || patient?.fullName || "Unnamed patient";
 }
 
 function SectionHeader({ eyebrow, title, description }) {
+  // Reusable section heading used across all admin tabs to keep the dashboard layout consistent.
   return (
     <div className="admin-section-head">
       <div>
@@ -159,6 +170,7 @@ function SectionHeader({ eyebrow, title, description }) {
 }
 
 function StatCard({ label, value, helper }) {
+  // Small summary card used in overview, billing, and other snapshot sections.
   return (
     <article className="admin-stat-card">
       <p>{label}</p>
@@ -169,6 +181,9 @@ function StatCard({ label, value, helper }) {
 }
 
 function DataTable({ title, columns, rows, emptyText }) {
+  // Generic admin table component:
+  // Many admin sections reuse this so the table layout stays consistent across doctors,
+  // patients, appointments, beds, and inventory.
   return (
     <article className="admin-panel-card">
       <div className="admin-card-top">
@@ -207,6 +222,8 @@ function DataTable({ title, columns, rows, emptyText }) {
 function AdminPanel() {
   const todayDate = new Date().toISOString().slice(0, 10);
   const navigate = useNavigate();
+
+  // Screen state for loading, navigation, search, and management forms.
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState("overview");
@@ -252,6 +269,8 @@ function AdminPanel() {
   const [bedError, setBedError] = useState("");
 
   useEffect(() => {
+    // Access control:
+    // Only authenticated admin accounts are allowed to remain on this page.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         navigate("/admin-login");
@@ -281,6 +300,8 @@ function AdminPanel() {
 
     let isMounted = true;
 
+    // Initial dashboard load:
+    // Fetch all major collections needed by the admin overview and management tabs.
     const loadDashboardData = async () => {
       try {
         const [doctorSnap, patientSnap, appointmentSnap] = await Promise.all([
@@ -324,6 +345,8 @@ function AdminPanel() {
         setDoctors(doctorData);
         setPatients(patientData);
         setAppointments(appointmentData);
+
+        // Bed data is currently local demo/state data rather than Firestore-backed data.
         setBeds(initialBeds);
       } catch (error) {
         console.error("Failed to load admin dashboard data", error);
@@ -341,6 +364,8 @@ function AdminPanel() {
     };
   }, [authLoading]);
 
+  // Admin search bar:
+  // One search term is shared across multiple tabs, and each dataset computes its own filtered version.
   const filteredPatients = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (!query) {
@@ -416,6 +441,7 @@ function AdminPanel() {
       .map((item) => ({ ...item, id: item.item }));
   }, [searchTerm]);
 
+  // Derived overview metrics shown in the admin dashboard summary cards and charts.
   const totalBeds = beds.length;
   const availableBeds = beds.filter((bed) => bed.status === "Available").length;
   const occupiedBeds = beds.filter((bed) => bed.status === "Occupied").length;
@@ -443,6 +469,7 @@ function AdminPanel() {
     ? [{ title: "Low bed availability", note: `${availableBeds} beds are currently open for admissions.` }]
     : [{ title: "Bed capacity stable", note: `${availableBeds} beds remain available across wards.` }];
 
+  // Booking form options derived from the currently loaded patient and doctor datasets.
   const patientOptions = useMemo(
     () =>
       patients.map((patient) => ({
@@ -463,6 +490,7 @@ function AdminPanel() {
     [doctors]
   );
 
+  // Computes which doctor time slots remain available for the selected appointment date.
   const availableAppointmentSlots = useMemo(() => {
     const selectedDoctor = doctorOptions.find((doctor) => doctor.id === appointmentForm.doctorId);
     if (!selectedDoctor) {
@@ -505,6 +533,7 @@ function AdminPanel() {
     const availability = Array.isArray(availabilityDays) ? availabilityDays.join(", ") : "";
     const normalizedPhone = normalizePhoneNumber(phone);
 
+    // Validate the minimum information required to create a doctor login and dashboard profile.
     if (
       !name.trim() ||
       !specialization.trim() ||
@@ -534,6 +563,8 @@ function AdminPanel() {
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
+
+      // Prevent duplicate doctor identities by checking the shared users collection first.
       const existingDoctorQuery = query(
         collection(db, "users"),
         where("email", "==", normalizedEmail)
@@ -576,6 +607,7 @@ function AdminPanel() {
 
       await setDoc(doc(db, "doctors", createdDoctorUser.uid), payload);
 
+      // Update the local table immediately so the admin sees the new doctor without a refresh.
       setDoctors((current) => [
         {
           id: createdDoctorUser.uid,
@@ -636,6 +668,7 @@ function AdminPanel() {
     }
 
     try {
+      // Patients added by admin are stored directly in the `patients` collection.
       const patientRef = doc(collection(db, "patients"));
       const payload = {
         uid: patientRef.id,
@@ -673,6 +706,7 @@ function AdminPanel() {
   };
 
   const handleAppointmentPatientChange = (patientUid) => {
+    // Selecting a patient auto-fills the patient name in the appointment payload.
     const selectedPatient = patientOptions.find((patient) => patient.id === patientUid);
     setAppointmentForm((current) => ({
       ...current,
@@ -682,6 +716,7 @@ function AdminPanel() {
   };
 
   const handleAppointmentDoctorChange = (doctorId) => {
+    // Selecting a doctor also auto-fills the department and resets the chosen time slot.
     const selectedDoctor = doctorOptions.find((doctor) => doctor.id === doctorId);
     setAppointmentForm((current) => ({
       ...current,
@@ -703,6 +738,7 @@ function AdminPanel() {
     }
 
     try {
+      // Validate day-level doctor availability before checking individual slot conflicts.
       const selectedDoctor = doctorOptions.find((doctor) => doctor.id === doctorId);
       if (!isDateWithinAvailability(date, selectedDoctor?.availability)) {
         setAppointmentError("The selected doctor is not available on that day.");
@@ -743,6 +779,7 @@ function AdminPanel() {
       );
 
       await runTransaction(db, async (transaction) => {
+        // The deterministic appointment ID ensures that one doctor/time slot can only be booked once.
         const existingSlotDoc = await transaction.get(appointmentRef);
         if (existingSlotDoc.exists()) {
           throw new Error("slot-already-booked");
@@ -781,6 +818,7 @@ function AdminPanel() {
   };
 
   const handleBedSubmit = (event) => {
+    // Bed updates are currently local-state changes and are not persisted to Firestore.
     event.preventDefault();
     const { bedId, status, patient } = bedForm;
     if (!bedId) {
@@ -803,6 +841,7 @@ function AdminPanel() {
   };
 
   const handleDeleteDoctor = async (doctor) => {
+    // Deleting a doctor also removes linked appointments, prescriptions, and matching user records.
     const confirmed = window.confirm(
       `Delete ${doctor.name} and all linked Firestore records?`
     );
@@ -860,6 +899,7 @@ function AdminPanel() {
   };
 
   const handleAddDoctorTimeSlot = () => {
+    // Converts the admin's selected time range into one or more saved day-specific slot labels.
     if (!doctorForm.slotDay || !doctorForm.slotStart || !doctorForm.slotEnd) {
       setDoctorError("Select a day, slot start, and slot end time.");
       return;
@@ -908,6 +948,7 @@ function AdminPanel() {
   };
 
   const handleToggleDoctorAvailabilityDay = (day) => {
+    // Toggling a day updates availability and also removes slots for days that were deselected.
     setDoctorForm((current) => {
       const removingDay = current.availabilityDays.includes(day);
       const nextDays = removingDay
@@ -926,6 +967,7 @@ function AdminPanel() {
   };
 
   const handleToggleAllDoctorAvailabilityDays = () => {
+    // This helper quickly selects or clears all days in the availability picker.
     setDoctorForm((current) => {
       const enableAllDays = current.availabilityDays.length !== DAY_OPTIONS.length;
 
@@ -939,6 +981,7 @@ function AdminPanel() {
   };
 
   const handleRemoveDoctorTimeSlot = (slotToRemove) => {
+    // Clicking a saved chip removes that slot from the doctor creation form.
     setDoctorForm((current) => ({
       ...current,
       timeSlots: current.timeSlots.filter(
@@ -948,6 +991,7 @@ function AdminPanel() {
   };
 
   const handleLogout = async () => {
+    // End the admin session and return to the admin login page.
     await signOut(auth);
     navigate("/admin-login");
   };
@@ -970,6 +1014,7 @@ function AdminPanel() {
   return (
     <main className="admin-dashboard-page">
       <div className="admin-layout">
+        {/* Left sidebar controls which admin section is visible. */}
         <aside className="admin-sidebar">
           <div className="admin-sidebar-brand">
             <p>Hospital Management</p>
@@ -978,6 +1023,7 @@ function AdminPanel() {
           </div>
 
           <nav className="admin-sidebar-nav">
+            {/* Each button switches the active admin tab without changing the route. */}
             {navigationItems.map((item) => (
               <button
                 key={item.id}
@@ -1000,11 +1046,13 @@ function AdminPanel() {
             </div>
 
             <div className="admin-topbar-tools">
+              {/* This search bar powers filtering for doctors, patients, appointments, beds, and inventory. */}
               <label className="admin-search">
                 <span>Search records</span>
                 <input type="search" placeholder="Search patients, appointments, or departments" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
               </label>
 
+              {/* Profile card gives quick identity, sign-out, and return-home actions. */}
               <div className="admin-profile-card">
                 <strong>Gowtham</strong>
                 
@@ -1020,6 +1068,8 @@ function AdminPanel() {
           </header>
 
           <section id="overview" className={`admin-page-section ${activeNav === "overview" ? "active" : ""}`}>
+            {/* Overview tab:
+                Displays the main dashboard snapshot with stat cards, charts, alerts, and summary tables. */}
             <SectionHeader eyebrow="Live Overview" title="Hospital performance snapshot" description="Core metrics, trend views, and watchlist items for today’s operations." />
 
             <div className="admin-stats-grid">
@@ -1164,6 +1214,8 @@ function AdminPanel() {
           </section>
 
           <section id="doctors" className={`admin-page-section ${activeNav === "doctors" ? "active" : ""}`}>
+            {/* Doctors tab:
+                Used to add doctors, configure their availability, and manage the doctor directory. */}
             <SectionHeader
               eyebrow="Doctor Management"
               title="Add and review doctors"
@@ -1175,6 +1227,7 @@ function AdminPanel() {
                 <div className="admin-card-top">
                   <h3>Add doctor</h3>
                 </div>
+                {/* This form creates both the Firebase Auth doctor account and the Firestore doctor/user records. */}
                 <form className="admin-form-grid" onSubmit={handleDoctorSubmit}>
                   <label htmlFor="doctor-name">Doctor name</label>
                   <input
@@ -1385,6 +1438,8 @@ function AdminPanel() {
           </section>
 
           <section id="patients" className={`admin-page-section ${activeNav === "patients" ? "active" : ""}`}>
+            {/* Patients tab:
+                Lets the admin create new patient entries and review the registry list. */}
             <SectionHeader
               eyebrow="Patient Registry"
               title="Add and manage patient records"
@@ -1519,6 +1574,8 @@ function AdminPanel() {
           </section>
 
           <section id="appointments" className={`admin-page-section ${activeNav === "appointments" ? "active" : ""}`}>
+            {/* Appointments tab:
+                Books appointments by combining patient selection, doctor selection, availability, and free slots. */}
             <SectionHeader
               eyebrow="Appointments"
               title="Book and monitor appointments"
@@ -1633,6 +1690,8 @@ function AdminPanel() {
           </section>
 
           <section id="beds" className={`admin-page-section ${activeNav === "beds" ? "active" : ""}`}>
+            {/* Beds tab:
+                Updates local bed occupancy data for the admin operations view. */}
             <SectionHeader
               eyebrow="Bed Management"
               title="Track occupancy and assign beds"
@@ -1728,6 +1787,8 @@ function AdminPanel() {
           </section>
 
           <section id="billing" className={`admin-page-section ${activeNav === "billing" ? "active" : ""}`}>
+            {/* Billing tab:
+                Shows a high-level financial summary for invoices, collections, and pending payments. */}
             <SectionHeader
               eyebrow="Billing"
               title="Revenue snapshot"
@@ -1750,6 +1811,8 @@ function AdminPanel() {
           </section>
 
           <section id="inventory" className={`admin-page-section ${activeNav === "inventory" ? "active" : ""}`}>
+            {/* Inventory tab:
+                Uses the reusable table component to show stock thresholds and vendors. */}
             <SectionHeader
               eyebrow="Inventory"
               title="Critical supplies watchlist"

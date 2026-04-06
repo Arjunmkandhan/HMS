@@ -1,3 +1,6 @@
+// Patient vitals setup page:
+// This page is shown after patient signup/login if the user's health profile is not yet complete.
+// It collects personal details and medical basics that the doctor and patient dashboards later display.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
@@ -12,6 +15,7 @@ import { auth, db } from "../../../lib/firebase";
 import "../../../shared/styles/auth.css";
 import "../../../shared/styles/patientVitals.css";
 
+// Initial empty form used on first render and whenever the component needs a clean state.
 const initialForm = {
   fullName: "",
   age: "",
@@ -29,12 +33,17 @@ const initialForm = {
 
 function PatientVitals() {
   const navigate = useNavigate();
+
+  // Page state:
+  // `form` stores controlled input values, `loading` controls the initial auth/profile lookup,
+  // and `saving` controls the submit button while Firestore writes are in progress.
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // This auth listener ensures only logged-in patients can fill the vitals form.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         navigate("/patient-login");
@@ -54,11 +63,14 @@ function PatientVitals() {
 
         if (patientSnap.exists()) {
           const data = patientSnap.data();
+
+          // If vitals are already complete, there is no need to show this onboarding page again.
           if (data?.vitalsCompleted) {
             navigate("/patient-dashboard");
             return;
           }
 
+          // If a partial patient record already exists, preload those values into the form.
           setForm((current) => ({
             ...current,
             fullName: data.name || "",
@@ -86,6 +98,7 @@ function PatientVitals() {
     return () => unsubscribe();
   }, [navigate]);
 
+  // Generic change handler used by most fields.
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({
@@ -94,6 +107,9 @@ function PatientVitals() {
     }));
   };
 
+  // Form submission:
+  // Saves or updates the patient's detailed profile in the `patients` collection and also marks
+  // the shared user profile as complete so routing logic can send the patient to the dashboard.
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -169,6 +185,7 @@ function PatientVitals() {
   return (
     <main className="auth-page vitals-page">
       <section className="auth-shell vitals-shell">
+        {/* Informational panel describing why the vitals form matters. */}
         <aside className="auth-brand-panel">
           <p className="auth-eyebrow">Patient Details</p>
           <h1>Complete Your Vital Information</h1>
@@ -183,6 +200,7 @@ function PatientVitals() {
           </ul>
         </aside>
 
+        {/* Main vitals form used during patient onboarding. */}
         <div className="auth-card vitals-card">
           <h2>Patient Vitals</h2>
           <p className="auth-subtext">
@@ -240,6 +258,7 @@ function PatientVitals() {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => {
+                    // Phone input is sanitized so only digits are stored.
                     const val = e.target.value.replace(/\D/g, "");
                     setForm((current) => ({ ...current, phone: val }));
                   }}
@@ -336,6 +355,7 @@ function PatientVitals() {
                   type="text"
                   value={form.emergencyContactName}
                   onChange={(e) => {
+                    // This field removes digits so names remain readable.
                     const val = e.target.value.replace(/[0-9]/g, "");
                     setForm((current) => ({ ...current, emergencyContactName: val }));
                   }}
@@ -350,6 +370,7 @@ function PatientVitals() {
                   type="tel"
                   value={form.emergencyContactPhone}
                   onChange={(e) => {
+                    // Like the main phone number, only digits are stored.
                     const val = e.target.value.replace(/\D/g, "");
                     setForm((current) => ({ ...current, emergencyContactPhone: val }));
                   }}

@@ -1,3 +1,6 @@
+// Admin signup page:
+// This page creates new admin accounts and stores their role information in Firestore.
+// It is mainly used to initialize or add administrative access for the system.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../lib/firebase";
@@ -8,6 +11,7 @@ import "../../../shared/styles/auth.css";
 function AdminSignup() {
   const navigate = useNavigate();
 
+  // Controlled input and submission state.
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -15,6 +19,7 @@ function AdminSignup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Creates the Firebase Authentication account and matching Firestore user profile.
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
@@ -28,7 +33,7 @@ function AdminSignup() {
 
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      // Create user doc
+
       await setDoc(doc(db, "users", user.uid), {
         email: user.email || email,
         name: fullName,
@@ -36,7 +41,7 @@ function AdminSignup() {
         profileCompleted: true,
         createdAt: serverTimestamp(),
       });
-      
+
       navigate("/admin/dashboard");
     } catch (err) {
       setError(err.message);
@@ -48,7 +53,8 @@ function AdminSignup() {
   return (
     <main className="auth-page">
       <section className="auth-shell">
-        <aside className="auth-brand-panel" style={{background: 'linear-gradient(135deg, #7f1d1d, #450a0a)'}}>
+        {/* Informational panel for the admin onboarding purpose. */}
+        <aside className="auth-brand-panel" style={{ background: "linear-gradient(135deg, #7f1d1d, #450a0a)" }}>
           <p className="auth-eyebrow">Admin Registration</p>
           <h1>Initialize Admin</h1>
           <p>
@@ -61,6 +67,7 @@ function AdminSignup() {
           </ul>
         </aside>
 
+        {/* The actual admin registration form. */}
         <div className="auth-card">
           <h2>Admin Setup</h2>
           <p className="auth-subtext">Register a new administrative account.</p>
@@ -108,7 +115,7 @@ function AdminSignup() {
 
             {error ? <p className="auth-error">{error}</p> : null}
 
-            <button className="auth-btn primary" type="submit" disabled={loading} style={{background: '#7f1d1d'}}>
+            <button className="auth-btn primary" type="submit" disabled={loading} style={{ background: "#7f1d1d" }}>
               {loading ? "Creating..." : "Create Admin Account"}
             </button>
           </form>

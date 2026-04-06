@@ -1,3 +1,6 @@
+// Admin login page:
+// This page allows only admin-role accounts to enter the admin dashboard.
+// It checks Firebase Authentication plus the Firestore `users` record for role validation.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../lib/firebase";
@@ -12,6 +15,7 @@ import "../../../shared/styles/auth.css";
 function AdminLogin() {
   const navigate = useNavigate();
 
+  // Form state plus session-check state for preventing unnecessary relogin.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +24,7 @@ function AdminLogin() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // When the page opens, verify whether the current Firebase session already belongs to an admin.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setCheckingSession(false);
@@ -47,6 +52,7 @@ function AdminLogin() {
     return () => unsubscribe();
   }, [navigate]);
 
+  // Manual admin login using email/password auth.
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -111,7 +117,8 @@ function AdminLogin() {
   return (
     <main className="auth-page">
       <section className="auth-shell">
-        <aside className="auth-brand-panel" style={{background: 'linear-gradient(135deg, #7f1d1d, #450a0a)'}}>
+        {/* The left panel explains the admin role and the type of control this portal provides. */}
+        <aside className="auth-brand-panel" style={{ background: "linear-gradient(135deg, #7f1d1d, #450a0a)" }}>
           <p className="auth-eyebrow">Admin Access</p>
           <h1>System Administrator</h1>
           <p>
@@ -124,6 +131,7 @@ function AdminLogin() {
           </ul>
         </aside>
 
+        {/* The right panel contains the restricted login form. */}
         <div className="auth-card">
           <h2>Admin Login</h2>
           <p className="auth-subtext">Restricted Area. Authorized personnel only.</p>
@@ -160,7 +168,7 @@ function AdminLogin() {
 
             {error ? <p className="auth-error">{error}</p> : null}
 
-            <button className="auth-btn primary" type="submit" disabled={loading} style={{background: '#7f1d1d'}}>
+            <button className="auth-btn primary" type="submit" disabled={loading} style={{ background: "#7f1d1d" }}>
               {loading ? "Authenticating..." : "Login"}
             </button>
           </form>

@@ -1,8 +1,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+/* Patient dashboard stylesheet:
+   This file styles the complete patient portal, including the sidebar, topbar,
+   booking form, records, prescriptions, billing, and settings screens. */
 
 /* ─── Layout ──────────────────────────────────────────────── */
 
 .pd-layout {
+  /* Root layout wrapper that places the sidebar beside the main dashboard content. */
   --bg: #f0f5ff;
   --surface: #ffffff;
   --text: #10223d;
@@ -35,6 +39,7 @@ body {
 /* ─── Sidebar ─────────────────────────────────────────────── */
 
 .pd-sidebar {
+  /* Left navigation panel for patient dashboard tabs. */
   width: 240px;
   min-height: 100vh;
   background: var(--sidebar-bg);

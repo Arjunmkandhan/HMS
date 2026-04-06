@@ -1,5 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 
+/* Public landing page stylesheet:
+   This file styles the homepage only, including the fixed navbar, hero banner,
+   portal cards, feature cards, and footer seen before entering any portal. */
+
 :root {
   --bg: #f4f8ff;
   --surface: #ffffff;
@@ -27,6 +31,7 @@ body {
 }
 
 .home-page {
+  /* Root wrapper for the full landing page. */
   font-family: "Manrope", "Segoe UI", sans-serif;
   color: var(--text);
   padding-top: 72px;
@@ -37,6 +42,7 @@ body {
 }
 
 .home-header {
+  /* Fixed top navigation bar for anchor links like Home, Features, and Portals. */
   position: fixed;
   top: 0;
   left: 0;
@@ -97,6 +103,7 @@ body {
 }
 
 .hero-section {
+  /* Main hero area split between text content and the illustration. */
   max-width: 1120px;
   margin: 0 auto;
   padding: 4.5rem 1.4rem 4rem;
@@ -253,6 +260,7 @@ body {
 }
 
 .portal-section {
+  /* Section that contains the patient, doctor, and admin entry cards. */
   max-width: 1120px;
   margin: 0 auto;
   padding: 1rem 1.4rem 4.1rem;
@@ -267,6 +275,7 @@ body {
 }
 
 .portal-card {
+  /* Individual portal card that sends the user into a role-specific flow. */
   background: var(--surface);
   border-radius: 1rem;
   border: 1px solid var(--line);
@@ -323,6 +332,7 @@ body {
 }
 
 .features-section {
+  /* Marketing feature band shown below the portal cards. */
   background: #f8fbff;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -355,6 +365,7 @@ body {
 }
 
 .home-footer {
+  /* Footer shown at the bottom of the public landing page. */
   background: #0f223f;
   color: #dce6f8;
   padding: 2rem 1.4rem;

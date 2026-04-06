@@ -1,4 +1,8 @@
+// Feature summary section:
+// This component keeps the list of marketing highlights in one place and renders
+// them by mapping over data, which makes the UI easier to extend later.
 function Features() {
+  // Each object represents one card shown in the features grid on the home page.
   const featureItems = [
     {
       title: "Fast Appointment Booking",
@@ -26,6 +30,7 @@ function Features() {
       </div>
 
       <div className="feature-grid">
+        {/* Mapping keeps the JSX short and ensures each feature card is generated consistently. */}
         {featureItems.map((item) => (
           <article className="feature-card" key={item.title}>
             <h3>{item.title}</h3>

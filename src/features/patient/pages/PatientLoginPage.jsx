@@ -1,3 +1,7 @@
+// Patient login page:
+// This page handles both email/password login and Google login for patients.
+// It is the main entry point into the patient side of the website and decides
+// whether the user should go to the vitals form or directly to the patient dashboard.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../lib/firebase";
@@ -15,9 +19,11 @@ import {
 import "../../../shared/styles/auth.css";
 
 function PatientLogin() {
+  // Google provider is used by Firebase popup-based sign-in.
   const provider = new GoogleAuthProvider();
   const navigate = useNavigate();
 
+  // Form and UI state for the login screen.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,13 +31,17 @@ function PatientLogin() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Post-login routing:
+  // After Firebase authenticates a user, this helper checks Firestore to confirm that
+  // the account belongs to the patient portal and that the profile has the required data.
   const routeAfterLogin = async (user) => {
-    // Check if user exists in the core users collection
+    // The `users` collection stores the role for every logged-in account.
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
-      // First-time Google login: Create both 'users' and 'patients' docs and bypass vitals
+      // First-time Google login:
+      // Create a shared user record plus a patient-specific record, then continue to vitals setup.
       await setDoc(userRef, {
         email: user.email || "",
         name: user.displayName || "Patient",
@@ -54,11 +64,14 @@ function PatientLogin() {
     }
 
     const userData = userSnap.data();
+
+    // Prevent cross-portal access, such as an admin trying to enter the patient portal.
     if (userData.role && userData.role !== "patient") {
       setError("This account is not registered as a Patient. Please use the correct portal.");
       return;
     }
 
+    // Older records may miss the role field, so the page repairs that data automatically.
     if (!userData.role) {
       await setDoc(
         userRef,
@@ -73,10 +86,10 @@ function PatientLogin() {
       );
     }
 
-    // Existing patient routing based on vitals status
+    // The `patients` collection stores health-profile progress such as vitals completion.
     const patientRef = doc(db, "patients", user.uid);
     const patientSnap = await getDoc(patientRef);
-    
+
     if (patientSnap.exists() && patientSnap.data()?.vitalsCompleted) {
       navigate("/patient-dashboard");
     } else {
@@ -84,6 +97,8 @@ function PatientLogin() {
     }
   };
 
+  // Google sign-in flow:
+  // Uses Firebase popup auth and then reuses the same routing helper as normal login.
   const handleGoogleLogin = async () => {
     setError("");
     setGoogleLoading(true);
@@ -97,6 +112,7 @@ function PatientLogin() {
     }
   };
 
+  // Email/password sign-in flow.
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -115,6 +131,7 @@ function PatientLogin() {
   return (
     <main className="auth-page">
       <section className="auth-shell">
+        {/* Left branding panel that explains what the patient portal is used for. */}
         <aside className="auth-brand-panel">
           <p className="auth-eyebrow">Patient Access</p>
           <h1>Welcome Back</h1>
@@ -129,6 +146,7 @@ function PatientLogin() {
           </ul>
         </aside>
 
+        {/* Right-side login card that contains the actual authentication form. */}
         <div className="auth-card">
           <h2>Patient Login</h2>
           <p className="auth-subtext">Use your registered email and password.</p>
@@ -154,6 +172,7 @@ function PatientLogin() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              {/* This button only changes visibility in the UI; it does not affect authentication logic. */}
               <button
                 type="button"
                 className="auth-password-toggle"
@@ -163,12 +182,14 @@ function PatientLogin() {
               </button>
             </div>
 
+            {/* Error feedback is shown only when login fails or portal validation fails. */}
             {error ? <p className="auth-error">{error}</p> : null}
 
             <button className="auth-btn primary" type="submit" disabled={loading}>
               {loading ? "Signing In..." : "Sign In"}
             </button>
 
+            {/* Alternate login path using Google Authentication. */}
             <button
               className="auth-btn secondary"
               type="button"
@@ -179,6 +200,7 @@ function PatientLogin() {
             </button>
           </form>
 
+          {/* Navigation helpers for users who need signup or want to leave the portal. */}
           <p className="auth-switch">
             New patient? <Link to="/patient-signup">Create an account</Link>
           </p>

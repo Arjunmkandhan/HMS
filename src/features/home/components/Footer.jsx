@@ -1,3 +1,5 @@
+// Home page footer:
+// This is the closing section of the public landing page and contains project identity text.
 function Footer() {
   return (
     <footer className="home-footer">

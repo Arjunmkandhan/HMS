@@ -1,6 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 
+/* Doctor dashboard stylesheet:
+   This file controls the full doctor portal layout, including the sidebar, topbar,
+   overview cards, appointment list, patient search panel, prescription form, and profile editor. */
+
 .dd-layout {
+  /* Root dashboard shell with sidebar + main content. */
   --dd-bg: #eef7f3;
   --dd-surface: #ffffff;
   --dd-line: #d2e7dd;
@@ -30,6 +35,7 @@ body {
 }
 
 .dd-sidebar {
+  /* Left navigation used to switch dashboard tabs. */
   width: 244px;
   min-height: 100vh;
   background: linear-gradient(180deg, var(--dd-primary-dark), #1b5f4c);
@@ -155,6 +161,7 @@ body {
 }
 
 .dd-topbar {
+  /* Sticky header that shows the active tab and doctor actions. */
   position: sticky;
   top: 0;
   z-index: 100;
@@ -283,6 +290,7 @@ body {
 }
 
 .dd-welcome-banner {
+  /* Overview banner displayed on the doctor dashboard home tab. */
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -345,6 +353,7 @@ body {
 }
 
 .dd-stats-grid {
+  /* Grid of overview statistic cards. */
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 1rem;
 }
@@ -599,6 +608,7 @@ body {
 .dd-form-grid input,
 .dd-form-grid select,
 .dd-form-grid textarea {
+  /* Shared input styling for the patient search box and doctor form fields. */
   width: 100%;
   border: 1px solid var(--dd-line);
   border-radius: 0.8rem;

@@ -1,3 +1,6 @@
+// Patient signup page:
+// This page creates new patient accounts and then redirects the user into the
+// vitals-completion flow so their medical profile can be filled in.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../lib/firebase";
@@ -9,6 +12,7 @@ function PatientSignup() {
   const provider = new GoogleAuthProvider();
   const navigate = useNavigate();
 
+  // Controlled form state for the signup fields.
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -17,11 +21,15 @@ function PatientSignup() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Shared routing helper:
+  // After account creation or Google sign-in, the app checks whether this user already
+  // has patient records and then sends them to either vitals setup or the dashboard.
   const routeAfterLogin = async (user) => {
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      // New Google user: create the shared user profile and a patient record immediately.
       await setDoc(userRef, {
         email: user.email || "",
         name: user.displayName || "Patient",
@@ -51,7 +59,7 @@ function PatientSignup() {
 
     const patientRef = doc(db, "patients", user.uid);
     const patientSnap = await getDoc(patientRef);
-    
+
     if (patientSnap.exists() && patientSnap.data()?.vitalsCompleted) {
       navigate("/patient-dashboard");
     } else {
@@ -59,6 +67,8 @@ function PatientSignup() {
     }
   };
 
+  // Google signup/login:
+  // Firebase handles both cases, and this app decides the next page after checking Firestore.
   const handleGoogleLogin = async () => {
     setError("");
     setGoogleLoading(true);
@@ -72,6 +82,8 @@ function PatientSignup() {
     }
   };
 
+  // Email/password signup:
+  // Creates the auth account and a basic `users` document, then sends the patient to vitals setup.
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
@@ -85,7 +97,7 @@ function PatientSignup() {
 
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      // Create user doc
+
       await setDoc(doc(db, "users", user.uid), {
         email: user.email || email,
         name: fullName,
@@ -93,9 +105,8 @@ function PatientSignup() {
         profileCompleted: false,
         createdAt: serverTimestamp(),
       });
-      // Do NOT create patients doc yet, let PatientVitals do it, 
-      // or we can create it here. PatientVitals assumes profileCompleted is in users, and vitalsCompleted in patients.
-      // We will let PatientVitals create the patients doc.
+
+      // The dedicated vitals page creates or completes the patient-specific document.
       navigate("/patient-vitals");
     } catch (err) {
       setError(err.message);
@@ -107,6 +118,7 @@ function PatientSignup() {
   return (
     <main className="auth-page">
       <section className="auth-shell">
+        {/* Branding side that explains the purpose of the registration flow. */}
         <aside className="auth-brand-panel">
           <p className="auth-eyebrow">Patient Registration</p>
           <h1>Create Your Account</h1>
@@ -121,6 +133,7 @@ function PatientSignup() {
           </ul>
         </aside>
 
+        {/* Signup card containing the patient registration fields. */}
         <div className="auth-card">
           <h2>Patient Signup</h2>
           <p className="auth-subtext">Set up your secure patient account.</p>

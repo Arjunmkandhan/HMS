@@ -1,5 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 
+/* Admin dashboard stylesheet:
+   This file styles the admin portal, including the sidebar, topbar search bar,
+   analytics cards, charts, management forms, reusable tables, and operations panels. */
+
 .admin-dashboard-page {
   --admin-bg: #fdf2f2;
   --admin-surface: #ffffff;
@@ -31,6 +35,7 @@ body {
 }
 
 .admin-layout {
+  /* Main admin layout: left navigation + right content area. */
   width: min(1380px, 100%);
   margin: 0 auto;
   display: grid;
@@ -49,6 +54,7 @@ body {
 }
 
 .admin-sidebar {
+  /* Sticky navigation panel used to switch between admin sections. */
   position: sticky;
   top: 1.4rem;
   height: fit-content;
@@ -136,6 +142,7 @@ body {
 }
 
 .admin-topbar {
+  /* Top section containing the welcome text, search bar, and profile actions. */
   border-radius: 1.3rem;
   padding: 1.25rem;
   display: flex;
@@ -185,6 +192,7 @@ body {
 .admin-search input,
 .admin-form-grid input,
 .admin-form-grid select {
+  /* Shared field styling for the search bar and all admin forms. */
   width: 100%;
   border-radius: 0.82rem;
   border: 1px solid var(--admin-line);
@@ -362,6 +370,7 @@ body {
 }
 
 .admin-chart-grid {
+  /* Chart region used by the overview tab. */
   margin-top: 1rem;
   grid-template-columns: 1.2fr 1fr 0.95fr;
 }
@@ -440,6 +449,7 @@ body {
 }
 
 .admin-table {
+  /* Shared table style reused across doctors, patients, appointments, beds, and inventory. */
   width: 100%;
   border-collapse: collapse;
 }

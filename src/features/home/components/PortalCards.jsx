@@ -1,3 +1,6 @@
+// Portal selection cards:
+// This section tells the user where each major role enters the system.
+// It is the bridge from the public landing page into the protected role-specific portals.
 import { Link } from "react-router-dom";
 
 function PortalCards() {
@@ -9,6 +12,7 @@ function PortalCards() {
       </div>
 
       <div className="portal-grid">
+        {/* Patient entry point: routes to patient login/signup flow. */}
         <article className="portal-card">
           <h3>Patient Portal</h3>
           <p>Book appointments, track prescriptions, and manage profile details.</p>
@@ -17,6 +21,7 @@ function PortalCards() {
           </Link>
         </article>
 
+        {/* Doctor entry point: routes to the doctor login page. */}
         <article className="portal-card">
           <h3>Doctor Portal</h3>
           <p>Review schedules, patient history, and daily consultation updates.</p>
@@ -25,6 +30,7 @@ function PortalCards() {
           </Link>
         </article>
 
+        {/* Admin entry point: routes through `/admin`, which then redirects to the actual admin login page. */}
         <article className="portal-card">
           <h3>Admin Portal</h3>
           <p>Monitor system activity, add doctors, and operational performance.</p>

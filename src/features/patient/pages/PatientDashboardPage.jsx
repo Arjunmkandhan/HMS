@@ -1,3 +1,7 @@
+// Patient dashboard page:
+// This is the main controller for the patient portal.
+// It loads profile information, listens to appointments/prescriptions/billing,
+// manages the appointment booking form, and decides which patient tab to render.
 import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
@@ -34,6 +38,7 @@ const NAV_ITEMS = [
 ];
 
 function formatDate(dateValue) {
+  // Shared date formatter used across multiple dashboard cards, tables, and downloads.
   if(!dateValue) return "";
   return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-IN", {
     day: "numeric",
@@ -43,6 +48,7 @@ function formatDate(dateValue) {
 }
 
 function getAppointmentDateValue(dateValue) {
+  // Appointments may use plain strings or Firestore Timestamp-like objects, so this helper normalizes both.
   if (!dateValue) {
     return "";
   }
@@ -63,6 +69,7 @@ function getAppointmentDateValue(dateValue) {
 }
 
 function getDayStart(dateValue) {
+  // Normalizes a date to midnight so date comparisons are stable.
   if (!dateValue) {
     return null;
   }
@@ -77,12 +84,15 @@ function getDayStart(dateValue) {
 
 function PatientDashboard() {
   const navigate = useNavigate();
+
+  // Navigation and layout state for the sidebar, tab system, and logout dropdown.
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [currentUserUid, setCurrentUserUid] = useState(null);
   const [showLogoutDropdown, setShowLogoutDropdown] = useState(false);
 
+  // Patient identity/profile data displayed in the dashboard and settings tab.
   const [profile, setProfile] = useState({
     fullName: "Patient",
     age: "",
@@ -93,6 +103,7 @@ function PatientDashboard() {
     bloodGroup: "",
   });
 
+  // Shared logout handler used by both sidebar and topbar UI.
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -102,12 +113,14 @@ function PatientDashboard() {
     }
   };
 
+  // Doctor directory data powers the appointment booking form.
   const [doctors, setDoctors] = useState([]);
   const [doctorsBySpecialty, setDoctorsBySpecialty] = useState({});
   const [unavailableDoctorSlots, setUnavailableDoctorSlots] = useState([]);
 
   useEffect(() => {
-    // Fetch doctors
+    // Doctor list load:
+    // The patient can only book after the page knows which doctors exist and which specialties they belong to.
     const fetchDoctors = async () => {
       const q = query(collection(db, "doctors"));
       const snapshot = await getDocs(q);
@@ -118,6 +131,7 @@ function PatientDashboard() {
       }));
       setDoctors(docsList);
 
+      // Group doctors by specialization so the form can cascade from specialty to doctor.
       const bySpec = {};
       docsList.forEach(d => {
         const specs = Array.isArray(d.specialization) 
@@ -131,6 +145,7 @@ function PatientDashboard() {
       });
       setDoctorsBySpecialty(bySpec);
       
+      // Preselect the first available specialty and doctor to make the form easier to use.
       const firstSpec = Object.keys(bySpec)[0];
       if(firstSpec) {
         setAppointmentForm(prev => ({
@@ -145,6 +160,8 @@ function PatientDashboard() {
   }, []);
 
   useEffect(() => {
+    // Auth and profile load:
+    // This listener makes sure the user is logged in and then fills the patient profile state from Firestore.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         navigate("/patient-login");
@@ -156,6 +173,7 @@ function PatientDashboard() {
         const patientSnap = await getDoc(patientRef);
         if (patientSnap.exists()) {
           const data = patientSnap.data();
+          // Merge whatever patient information exists into the dashboard profile model.
           setProfile(curr => ({
             ...curr,
             fullName: data.name || data.fullName || "Patient",
@@ -167,6 +185,7 @@ function PatientDashboard() {
             email: user.email || curr.email,
           }));
         } else {
+            // Fallback to the shared `users` record when a dedicated patient document is missing.
             const userRef = doc(db, "users", user.uid);
             const userSnap = await getDoc(userRef);
             if(userSnap.exists()){
@@ -190,6 +209,7 @@ function PatientDashboard() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [draftProfile, setDraftProfile] = useState(profile);
 
+  // Appointment list and the form state used for booking a new appointment.
   const [appointments, setAppointments] = useState([]);
   const [appointmentForm, setAppointmentForm] = useState({
     specialty: "",
@@ -202,6 +222,9 @@ function PatientDashboard() {
   useEffect(() => {
     if (!currentUserUid) return;
 
+    // Legacy compatibility:
+    // Some appointments use `patientUid` while older ones may use `patientId`,
+    // so the dashboard listens to both and merges them together.
     let appointmentsByUid = [];
     let appointmentsById = [];
 
@@ -246,6 +269,9 @@ function PatientDashboard() {
   }, [currentUserUid]);
 
   useEffect(() => {
+    // Selected-doctor slot watcher:
+    // When the patient chooses a doctor and date, this effect listens for already occupied times
+    // so the dropdown only shows free slots.
     if (!appointmentForm.doctorId || !appointmentForm.date) {
       setUnavailableDoctorSlots([]);
       return;
@@ -283,6 +309,7 @@ function PatientDashboard() {
   const [dashboardDataLoading, setDashboardDataLoading] = useState(true);
   const [dashboardDataError, setDashboardDataError] = useState("");
 
+  // Sorted appointment list reused by multiple dashboard sections.
   const sortedAppointments = useMemo(() => {
     return [...appointments].sort((a, b) => {
       const firstDate = getAppointmentDateValue(a?.date);
@@ -296,6 +323,7 @@ function PatientDashboard() {
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
+  // Upcoming list excludes completed appointments and only keeps today/future dates.
   const upcomingAppointments = sortedAppointments.filter((a) => {
     if ((a.status || "").toLowerCase() === "completed") {
       return false;
@@ -309,6 +337,7 @@ function PatientDashboard() {
     return appointmentDate >= todayStart;
   });
 
+  // Past visits are used to build medical records and visit history cards.
   const pastAppointments = sortedAppointments.filter((a) => {
     if ((a.status || "").toLowerCase() === "completed") {
       return true;
@@ -322,6 +351,7 @@ function PatientDashboard() {
     return appointmentDate < todayStart;
   });
 
+  // The app derives a lightweight medical record view from past appointments.
   const medicalRecords = useMemo(() => {
     return pastAppointments.map((appointment) => ({
       id: appointment.id,
@@ -336,6 +366,7 @@ function PatientDashboard() {
   useEffect(() => {
     if (!currentUserUid) return;
 
+    // Secondary dashboard data load for prescriptions and billing.
     setDashboardDataLoading(true);
     setDashboardDataError("");
 
@@ -351,6 +382,7 @@ function PatientDashboard() {
     let prescriptionsLoaded = false;
     let billingLoaded = false;
 
+    // The loading spinner ends only when both Firestore subscriptions have delivered their first result.
     const finishLoading = () => {
       if (prescriptionsLoaded && billingLoaded) {
         setDashboardDataLoading(false);
@@ -360,6 +392,7 @@ function PatientDashboard() {
     const unsubscribePrescriptions = onSnapshot(
       prescriptionQuery,
       (snapshot) => {
+        // Normalize medicines to an array because some records store them as text blocks.
         const prescriptionData = snapshot.docs.map((item) => {
           const data = item.data();
           const rawMedicines = Array.isArray(data.medicines)
@@ -417,6 +450,7 @@ function PatientDashboard() {
     };
   }, [currentUserUid]);
 
+  // Appointment updates currently support cancellation and simple status changes.
   const setAppointmentStatus = async (id, nextStatus) => {
     try {
       if (nextStatus === "cancelled") {
@@ -431,6 +465,7 @@ function PatientDashboard() {
     }
   };
 
+  // Saves edited profile values from the settings tab back into Firestore.
   const handleProfileSave = async (event) => {
     event.preventDefault();
     try {
@@ -443,6 +478,7 @@ function PatientDashboard() {
     }
   };
 
+  // Changing specialty automatically picks the first doctor in that department.
   const handleSpecialtyChange = (specialty) => {
     setAppointmentForm({ 
       specialty, 
@@ -453,6 +489,7 @@ function PatientDashboard() {
     });
   };
 
+  // Changing doctor resets the selected time because each doctor has different slot availability.
   const handleDoctorChange = (doctorId) => {
     const docObj = doctors.find(d => d.id === doctorId);
     setAppointmentForm(c => ({
@@ -466,12 +503,14 @@ function PatientDashboard() {
   const handleBookAppointment = async (event) => {
     event.preventDefault();
     try {
+      // Validate that the selected date fits the doctor's available days.
       const selectedDoctor = doctors.find((doctor) => doctor.id === appointmentForm.doctorId);
       if (!isDateWithinAvailability(appointmentForm.date, selectedDoctor?.availability)) {
         alert("The selected doctor is not available on that day. Please choose a valid date.");
         return;
       }
 
+      // Pre-check Firestore for an occupied slot before attempting the transaction.
       const existingAppointmentQuery = query(
         collection(db, "appointments"),
         where("doctorId", "==", appointmentForm.doctorId),
@@ -499,6 +538,7 @@ function PatientDashboard() {
       );
 
       await runTransaction(db, async (transaction) => {
+        // The document ID is built from doctor + date + time so only one booking can exist per slot.
         const existingSlotDoc = await transaction.get(appointmentRef);
         if (existingSlotDoc.exists()) {
           throw new Error("slot-already-booked");
@@ -528,6 +568,7 @@ function PatientDashboard() {
     }
   };
 
+  // Creates the available dropdown options shown in the appointment booking form.
   const selectedDoctorSlotOptions = useMemo(() => {
     const selectedDoctor = doctors.find((doctor) => doctor.id === appointmentForm.doctorId);
     if (!isDateWithinAvailability(appointmentForm.date, selectedDoctor?.availability)) {
@@ -542,6 +583,7 @@ function PatientDashboard() {
     return expandedSlots.filter((slot) => !unavailableDoctorSlots.includes(slot.time));
   }, [appointmentForm.date, appointmentForm.doctorId, doctors, unavailableDoctorSlots]);
 
+  // Download helpers turn current UI data into plain-text files.
   const handlePrescriptionDownload = (prescription) => {
     const medicines = Array.isArray(prescription.medicines)
       ? prescription.medicines
@@ -598,6 +640,8 @@ function PatientDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  // Overview tab:
+  // Shows the patient a quick summary of appointments, records, prescriptions, and billing.
   const renderOverview = () => (
     <div className="pd-overview">
       <div className="pd-welcome-banner">
@@ -736,6 +780,8 @@ function PatientDashboard() {
     </div>
   );
 
+  // Appointments tab:
+  // Contains the booking form plus separate sections for upcoming appointments and past visits.
   const renderAppointments = () => (
     <div className="pd-section">
       <div className="pd-section-head">
@@ -847,6 +893,8 @@ function PatientDashboard() {
     </div>
   );
 
+  // Records tab:
+  // Displays derived medical history entries built from appointment data.
   const renderRecords = () => (
     <div className="pd-section">
       <div className="pd-section-head">
@@ -890,6 +938,8 @@ function PatientDashboard() {
     </div>
   );
 
+  // Prescriptions tab:
+  // Lists doctor-written prescriptions and offers a simple download/print path.
   const renderPrescriptions = () => (
     <div className="pd-section">
       <div className="pd-section-head">
@@ -931,6 +981,8 @@ function PatientDashboard() {
     </div>
   );
 
+  // Billing tab:
+  // Displays payment totals and invoice-like rows for current and past bills.
   const renderBilling = () => (
     <div className="pd-section">
       <div className="pd-section-head">
@@ -984,6 +1036,8 @@ function PatientDashboard() {
     </div>
   );
 
+  // Settings tab:
+  // Lets the patient view profile information and switch into edit mode.
   const renderSettings = () => (
     <div className="pd-section">
       <div className="pd-section-head">
@@ -1057,6 +1111,7 @@ function PatientDashboard() {
   );
 
   const renderContent = () => {
+    // Local tab router used inside the patient dashboard.
     switch (activeTab) {
       case "overview": return renderOverview();
       case "appointments": return renderAppointments();

@@ -1,3 +1,7 @@
+// Doctor dashboard sidebar:
+// This component renders the left navigation menu used inside the doctor dashboard.
+// It does not load data itself; instead, it receives state and handlers from
+// `DoctorDashboardPage.jsx` and calls them when the doctor switches tabs or logs out.
 const NAV_ITEMS = [
   { id: "overview", label: "Dashboard", icon: "Dx" },
   { id: "appointments", label: "Appointments", icon: "Ap" },
@@ -14,6 +18,7 @@ function DoctorSidebar({
   onNavigate,
   onLogout,
 }) {
+  // Initials are shown in the circular avatar and are derived from the doctor's name.
   const initials = (doctorName || "Doctor")
     .split(" ")
     .filter(Boolean)
@@ -24,6 +29,7 @@ function DoctorSidebar({
 
   return (
     <>
+      {/* On small screens, the overlay lets the user click outside the sidebar to close it. */}
       {sidebarOpen ? (
         <div className="dd-overlay" onClick={() => setSidebarOpen(false)} />
       ) : null}
@@ -43,6 +49,7 @@ function DoctorSidebar({
         </div>
 
         <nav className="dd-sidebar-nav">
+          {/* Each button switches the visible content area in the parent dashboard component. */}
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}
@@ -59,6 +66,7 @@ function DoctorSidebar({
           ))}
         </nav>
 
+        {/* Footer action for ending the Firebase session. */}
         <div className="dd-sidebar-footer">
           <button className="dd-nav-item dd-nav-logout" onClick={onLogout} type="button">
             <span className="dd-nav-icon">Out</span>

@@ -1,3 +1,6 @@
+// Doctor login page:
+// This page verifies that the signed-in account belongs to a doctor and that the doctor
+// has been approved by the admin before granting access to the doctor dashboard.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../lib/firebase";
@@ -12,6 +15,7 @@ import "../../../shared/styles/auth.css";
 function DoctorLogin() {
   const navigate = useNavigate();
 
+  // Form and screen state for the doctor login workflow.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +24,7 @@ function DoctorLogin() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // If a doctor is already logged in, skip the form and go straight to the dashboard.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setCheckingSession(false);
@@ -36,6 +41,7 @@ function DoctorLogin() {
 
         const userData = docSnap.data();
 
+        // Admin accounts are not allowed to enter through the doctor portal.
         if (userData.role === "admin") {
           return;
         }
@@ -45,6 +51,7 @@ function DoctorLogin() {
           return;
         }
 
+        // Any unapproved or invalid account is signed out and kept away from the dashboard.
         await signOut(auth);
       } catch (err) {
         console.error("Doctor session check failed", err);
@@ -57,6 +64,7 @@ function DoctorLogin() {
     return () => unsubscribe();
   }, [navigate]);
 
+  // Manual login flow for doctors using email and password.
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -74,7 +82,6 @@ function DoctorLogin() {
 
       const userData = docSnap.data();
 
-      
       if (userData.role === "doctor" && userData.approved === true) {
         navigate("/doctor-dashboard", { replace: true });
         return;
@@ -102,7 +109,7 @@ function DoctorLogin() {
     return (
       <main className="auth-page">
         <section className="auth-shell">
-          <aside className="auth-brand-panel" style={{background: 'linear-gradient(135deg, #0f3d2e, #1f6f5b)'}}>
+          <aside className="auth-brand-panel" style={{ background: "linear-gradient(135deg, #0f3d2e, #1f6f5b)" }}>
             <p className="auth-eyebrow">Doctor Access</p>
             <h1>Welcome Doctor</h1>
             <p>
@@ -122,7 +129,8 @@ function DoctorLogin() {
   return (
     <main className="auth-page">
       <section className="auth-shell">
-        <aside className="auth-brand-panel" style={{background: 'linear-gradient(135deg, #0f3d2e, #1f6f5b)'}}>
+        {/* Left panel explains the purpose of the doctor portal. */}
+        <aside className="auth-brand-panel" style={{ background: "linear-gradient(135deg, #0f3d2e, #1f6f5b)" }}>
           <p className="auth-eyebrow">Doctor Access</p>
           <h1>Welcome Doctor</h1>
           <p>
@@ -135,6 +143,7 @@ function DoctorLogin() {
           </ul>
         </aside>
 
+        {/* Right panel contains the actual doctor authentication form. */}
         <div className="auth-card">
           <h2>Doctor Login</h2>
           <p className="auth-subtext">Use your registered email and password.</p>
@@ -171,7 +180,7 @@ function DoctorLogin() {
 
             {error ? <p className="auth-error">{error}</p> : null}
 
-            <button className="auth-btn primary" type="submit" disabled={loading} style={{background: '#0f3d2e'}}>
+            <button className="auth-btn primary" type="submit" disabled={loading} style={{ background: "#0f3d2e" }}>
               {loading ? "Signing In..." : "Sign In"}
             </button>
           </form>
