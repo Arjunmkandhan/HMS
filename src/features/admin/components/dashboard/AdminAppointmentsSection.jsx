@@ -16,6 +16,26 @@ export default function AdminAppointmentsSection({
   onPatientChange,
   onDoctorChange,
 }) {
+  // AdminAppointmentsSection:
+  // This component renders the appointment-booking tab for admins.
+  // It combines patient selection, doctor selection, department display, date choice, and free-slot selection,
+  // then forwards all actual booking logic back to the parent page through callback props.
+  // appointmentColumns:
+  // These columns define how the appointment schedule table should present each appointment row.
+  // The date column uses the shared formatter so every appointment appears with the same display format.
+  const appointmentColumns = [
+    { key: "patient", label: "Patient" },
+    { key: "doctor", label: "Doctor" },
+    { key: "department", label: "Department" },
+    {
+      key: "date",
+      label: "Date",
+      render: (row) => formatDisplayDate(row.date),
+    },
+    { key: "time", label: "Time" },
+    { key: "status", label: "Status" },
+  ];
+
   return (
     <section id="appointments" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -30,6 +50,7 @@ export default function AdminAppointmentsSection({
             <h3>Book appointment</h3>
           </div>
           <form className="admin-form-grid" onSubmit={onSubmit}>
+            {/* Patient dropdown chooses which person the appointment belongs to. */}
             <label htmlFor="appointment-patient">Patient</label>
             <select
               id="appointment-patient"
@@ -44,6 +65,7 @@ export default function AdminAppointmentsSection({
               ))}
             </select>
 
+            {/* Doctor dropdown controls which department and time slots become available. */}
             <label htmlFor="appointment-doctor">Doctor</label>
             <select
               id="appointment-doctor"
@@ -58,6 +80,7 @@ export default function AdminAppointmentsSection({
               ))}
             </select>
 
+            {/* Department is read-only because it is derived automatically from the selected doctor. */}
             <label htmlFor="appointment-department">Department</label>
             <input
               id="appointment-department"
@@ -80,6 +103,7 @@ export default function AdminAppointmentsSection({
               }
             />
 
+            {/* Available slots are already filtered by the parent page to exclude blocked times. */}
             <label htmlFor="appointment-time">Time</label>
             <select
               id="appointment-time"
@@ -110,18 +134,7 @@ export default function AdminAppointmentsSection({
         <DataTable
           title="Appointment schedule"
           emptyText="No appointments found."
-          columns={[
-            { key: "patient", label: "Patient" },
-            { key: "doctor", label: "Doctor" },
-            { key: "department", label: "Department" },
-            {
-              key: "date",
-              label: "Date",
-              render: (row) => formatDisplayDate(row.date),
-            },
-            { key: "time", label: "Time" },
-            { key: "status", label: "Status" },
-          ]}
+          columns={appointmentColumns}
           rows={filteredAppointments}
         />
       </div>

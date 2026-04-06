@@ -2,6 +2,10 @@
 // These reusable UI pieces keep the extracted admin sections consistent.
 
 export function SectionHeader({ eyebrow, title, description }) {
+  // SectionHeader:
+  // This small presentational component standardizes the heading area used by every admin tab.
+  // Instead of repeating the same eyebrow/title/description markup in each section file,
+  // the dashboard passes the text as props and this function renders it with the shared CSS classes.
   return (
     <div className="admin-section-head">
       <div>
@@ -14,6 +18,10 @@ export function SectionHeader({ eyebrow, title, description }) {
 }
 
 export function StatCard({ label, value, helper }) {
+  // StatCard:
+  // This component renders one summary metric card, such as total doctors or total patients.
+  // It receives plain data through props and converts it into a consistently styled card so
+  // overview, billing, and other summary sections all look uniform.
   return (
     <article className="admin-stat-card">
       <p>{label}</p>
@@ -24,6 +32,11 @@ export function StatCard({ label, value, helper }) {
 }
 
 export function DataTable({ title, columns, rows, emptyText }) {
+  // DataTable:
+  // This is the generic table renderer for the admin dashboard.
+  // `columns` describes what each column should show, including optional custom render functions,
+  // while `rows` contains the actual records. If no rows are available, the component shows the
+  // provided empty-state message instead of rendering an empty table.
   return (
     <article className="admin-panel-card">
       <div className="admin-card-top">

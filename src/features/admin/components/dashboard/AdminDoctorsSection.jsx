@@ -18,6 +18,50 @@ export default function AdminDoctorsSection({
   onAddTimeSlot,
   onRemoveTimeSlot,
 }) {
+  // AdminDoctorsSection:
+  // This function handles the full doctor-management tab UI.
+  // The parent page owns the actual form state and submission logic, while this component focuses
+  // on rendering inputs, forwarding changes upward, and showing the current doctor directory table.
+  // doctorDirectoryColumns:
+  // The table structure is defined once here so the JSX render stays easier to read.
+  // Each column either pulls a simple field or uses a custom render function for derived values like
+  // specialization labels, patient counts, or the delete action button.
+  const doctorDirectoryColumns = [
+    { key: "name", label: "Doctor" },
+    {
+      key: "specialization",
+      label: "Specialization",
+      render: (row) => formatSpecialization(row.specialization),
+    },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "availability", label: "Availability" },
+    {
+      key: "patientsToday",
+      label: "Patients today",
+      render: (row) =>
+        appointments.filter((appointment) => appointment.doctorId === row.id).length,
+    },
+    {
+      key: "approval",
+      label: "Approval",
+      render: (row) => (row.approved ? "Approved" : "Pending"),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row) => (
+        <button
+          type="button"
+          className="admin-btn admin-btn-danger"
+          onClick={() => onDeleteDoctor(row)}
+        >
+          Delete
+        </button>
+      ),
+    },
+  ];
+
   return (
     <section id="doctors" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -33,6 +77,7 @@ export default function AdminDoctorsSection({
           </div>
 
           <form className="admin-form-grid" onSubmit={onSubmit}>
+            {/* Basic identity/auth fields used to create both the doctor's login and profile records. */}
             <label htmlFor="doctor-name">Doctor name</label>
             <input
               id="doctor-name"
@@ -103,6 +148,7 @@ export default function AdminDoctorsSection({
             />
 
             <label htmlFor="doctor-availability">Availability</label>
+            {/* Availability chips update the selected days in parent state so only chosen days remain active. */}
             <div id="doctor-availability" className="admin-slot-list">
               <button
                 type="button"
@@ -124,6 +170,7 @@ export default function AdminDoctorsSection({
             </div>
 
             <label htmlFor="doctor-time-slots">Time slots</label>
+            {/* This inline row captures one day and one start/end range before converting it into saved slot entries. */}
             <div className="admin-inline-time-grid">
               <select
                 id="doctor-time-day"
@@ -197,41 +244,7 @@ export default function AdminDoctorsSection({
         <DataTable
           title="Doctor directory"
           emptyText="No doctors available."
-          columns={[
-            { key: "name", label: "Doctor" },
-            {
-              key: "specialization",
-              label: "Specialization",
-              render: (row) => formatSpecialization(row.specialization),
-            },
-            { key: "email", label: "Email" },
-            { key: "phone", label: "Phone" },
-            { key: "availability", label: "Availability" },
-            {
-              key: "patientsToday",
-              label: "Patients today",
-              render: (row) =>
-                appointments.filter((appointment) => appointment.doctorId === row.id).length,
-            },
-            {
-              key: "approval",
-              label: "Approval",
-              render: (row) => (row.approved ? "Approved" : "Pending"),
-            },
-            {
-              key: "actions",
-              label: "Actions",
-              render: (row) => (
-                <button
-                  type="button"
-                  className="admin-btn admin-btn-danger"
-                  onClick={() => onDeleteDoctor(row)}
-                >
-                  Delete
-                </button>
-              ),
-            },
-          ]}
+          columns={doctorDirectoryColumns}
           rows={filteredDoctors}
         />
       </div>

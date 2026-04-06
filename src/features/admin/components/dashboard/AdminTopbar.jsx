@@ -9,6 +9,10 @@ export default function AdminTopbar({
   adminName = "Gowtham",
   adminEmail = "gowtham@hms.com",
 }) {
+  // AdminTopbar:
+  // This top header displays the admin welcome text, the shared search input, and quick actions.
+  // The search field is controlled by the parent page, so typing here immediately updates the
+  // parent `searchTerm` state and filters multiple admin tables at once.
   return (
     <header className="admin-topbar">
       <div>

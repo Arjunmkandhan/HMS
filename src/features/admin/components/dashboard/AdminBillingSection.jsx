@@ -3,6 +3,9 @@
 import { SectionHeader, StatCard } from "./AdminDashboardCommon";
 
 export default function AdminBillingSection({ active }) {
+  // AdminBillingSection:
+  // This component renders the billing summary tab.
+  // It is intentionally simple right now and mainly serves as a clean home for the billing snapshot cards.
   return (
     <section id="billing" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -12,6 +15,7 @@ export default function AdminBillingSection({ active }) {
       />
 
       <div className="admin-stats-grid compact">
+        {/* Each StatCard here represents a fixed business-summary metric for the billing view. */}
         <StatCard label="Invoices Raised" value="126" helper="Generated this month" />
         <StatCard
           label="Collected Revenue"

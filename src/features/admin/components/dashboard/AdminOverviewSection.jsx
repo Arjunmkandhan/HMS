@@ -30,6 +30,10 @@ export default function AdminOverviewSection({
   bedAlerts,
   getAppointmentSortValue,
 }) {
+  // AdminOverviewSection:
+  // This function renders the "Dashboard" tab of the admin portal.
+  // It receives already prepared data from the parent page, such as summary stats, chart datasets,
+  // filtered records, and alert lists, then turns that data into cards, charts, tables, and warning panels.
   return (
     <section id="overview" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -39,12 +43,14 @@ export default function AdminOverviewSection({
       />
 
       <div className="admin-stats-grid">
+        {/* Each stat object is rendered through the shared StatCard component for a consistent layout. */}
         {stats.map((item) => (
           <StatCard key={item.label} {...item} />
         ))}
       </div>
 
       <div className="admin-chart-grid">
+        {/* Line chart visualizes month-wise patient growth using the passed analytics dataset. */}
         <article className="admin-panel-card">
           <div className="admin-card-top">
             <h3>Patient growth</h3>
@@ -62,6 +68,7 @@ export default function AdminOverviewSection({
           </div>
         </article>
 
+        {/* Bar chart compares appointment counts across departments or specialties. */}
         <article className="admin-panel-card">
           <div className="admin-card-top">
             <h3>Appointments analytics</h3>
@@ -79,6 +86,7 @@ export default function AdminOverviewSection({
           </div>
         </article>
 
+        {/* Pie chart gives a quick occupancy split for beds. */}
         <article className="admin-panel-card">
           <div className="admin-card-top">
             <h3>Bed occupancy</h3>
@@ -101,6 +109,7 @@ export default function AdminOverviewSection({
       </div>
 
       <div className="admin-data-grid">
+        {/* Recent patient table shows only the newest few records after sorting by admission date. */}
         <DataTable
           title="Recent patients"
           emptyText="No patient entries match the current search."
@@ -123,6 +132,7 @@ export default function AdminOverviewSection({
             .slice(0, 5)}
         />
 
+        {/* Upcoming appointments table uses the shared appointment sort helper so the soonest visits appear first. */}
         <DataTable
           title="Upcoming appointments"
           emptyText="No appointment records match the current search."
@@ -147,6 +157,7 @@ export default function AdminOverviewSection({
       </div>
 
       <div className="admin-alert-grid">
+        {/* Low stock alerts are derived in the parent page and displayed here as warning cards. */}
         <article className="admin-panel-card">
           <div className="admin-card-top">
             <h3>Low stock warnings</h3>
@@ -163,6 +174,7 @@ export default function AdminOverviewSection({
           </div>
         </article>
 
+        {/* Bed alerts summarize whether the hospital currently has healthy or low free-bed capacity. */}
         <article className="admin-panel-card">
           <div className="admin-card-top">
             <h3>Bed availability alerts</h3>

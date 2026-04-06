@@ -15,7 +15,11 @@ import "../../../shared/styles/auth.css";
 function AdminLogin() {
   const navigate = useNavigate();
 
-  // Form state plus session-check state for preventing unnecessary relogin.
+  // This local state powers the whole admin login screen.
+  // `email` and `password` keep the form inputs controlled, `showPassword` controls whether the
+  // password text is hidden or visible, `loading` prevents duplicate submissions, `checkingSession`
+  // keeps the page in a loading state while Firebase checks for an existing login, and `error`
+  // stores friendly feedback for failed authentication attempts.
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +28,20 @@ function AdminLogin() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // When the page opens, verify whether the current Firebase session already belongs to an admin.
+    // What this effect is for:
+    // It checks whether the browser already has a signed-in Firebase user before showing the form.
+    //
+    // How it works:
+    // Firebase's `onAuthStateChanged` listener runs immediately when the component mounts.
+    // If no user session exists, the page stops "checking" and shows the login form.
+    // If a user is already signed in, the code reads that person's Firestore document from
+    // `users/{uid}` and checks the stored `role` value.
+    //
+    // How it integrates with other admin code:
+    // The admin dashboard route should only open for users whose database role is `admin`.
+    // This effect supports that rule by auto-redirecting valid admins to the dashboard and
+    // signing out anyone whose Firebase session exists but whose Firestore profile is missing
+    // or belongs to another role such as doctor or patient.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setCheckingSession(false);
@@ -52,7 +69,20 @@ function AdminLogin() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // Manual admin login using email/password auth.
+  // What this function is for:
+  // It handles the form submission when an administrator manually logs in.
+  //
+  // How it works:
+  // 1. Prevents the browser's default form submission refresh.
+  // 2. Uses Firebase Authentication to validate the email/password combination.
+  // 3. Loads the signed-in user's Firestore profile document.
+  // 4. Confirms that the profile exists and is marked with the `admin` role.
+  // 5. Signs out unauthorized users and shows an error if the account is not allowed.
+  // 6. Navigates successful admin users into `/admin/dashboard`.
+  //
+  // Why this extra role check matters:
+  // Authentication only proves who the user is. The Firestore role check decides whether that
+  // authenticated user belongs in the admin area of the hospital system.
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -97,6 +127,7 @@ function AdminLogin() {
     return (
       <main className="auth-page">
         <section className="auth-shell">
+          {/* This left panel keeps the loading state visually aligned with the normal admin portal. */}
           <aside className="auth-brand-panel" style={{ background: "linear-gradient(135deg, #7f1d1d, #450a0a)" }}>
             <p className="auth-eyebrow">Admin Access</p>
             <h1>System Administrator</h1>
@@ -105,6 +136,7 @@ function AdminLogin() {
             </p>
           </aside>
 
+          {/* This card is shown while the app is still validating whether an admin session already exists. */}
           <div className="auth-card">
             <h2>Admin Login</h2>
             <p className="auth-subtext">Checking your session...</p>
@@ -136,6 +168,7 @@ function AdminLogin() {
           <h2>Admin Login</h2>
           <p className="auth-subtext">Restricted Area. Authorized personnel only.</p>
 
+          {/* This form is the direct entry point into the admin dashboard and is wired to `handleLogin`. */}
           <form onSubmit={handleLogin} className="auth-form">
             <label htmlFor="login-email">Admin Email</label>
             <input
@@ -149,6 +182,7 @@ function AdminLogin() {
 
             <label htmlFor="login-password">Password</label>
             <div className="auth-password-field">
+              {/* The password input remains controlled so the component always knows the current value. */}
               <input
                 id="login-password"
                 type={showPassword ? "text" : "password"}
@@ -160,6 +194,7 @@ function AdminLogin() {
               <button
                 type="button"
                 className="auth-password-toggle"
+                // This toggles password visibility for usability without submitting the form.
                 onClick={() => setShowPassword((current) => !current)}
               >
                 {showPassword ? "Hide" : "Show"}

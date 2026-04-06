@@ -53,9 +53,22 @@ import AdminTopbar from "../components/dashboard/AdminTopbar";
 import "../../../shared/styles/admin.css";
 
 function AdminPanel() {
+  // AdminPanel:
+  // This is the top-level controller for the admin portal.
+  // It is responsible for:
+  // 1. Checking whether the logged-in user is actually an admin.
+  // 2. Loading dashboard data from Firestore.
+  // 3. Holding the form state for doctors, patients, appointments, and beds.
+  // 4. Computing filtered/derived values for the different admin tabs.
+  // 5. Passing clean props into the smaller admin section components.
   const todayDate = new Date().toISOString().slice(0, 10);
   const navigate = useNavigate();
 
+  // Loading/navigation state:
+  // `authLoading` blocks the dashboard until the user's role is verified.
+  // `loading` blocks the dashboard until the initial Firestore data has loaded.
+  // `activeNav` decides which admin section component should be visible.
+  // `searchTerm` powers the shared topbar search across multiple admin datasets.
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState("overview");
@@ -101,6 +114,9 @@ function AdminPanel() {
   const [bedError, setBedError] = useState("");
 
   useEffect(() => {
+    // Authentication guard effect:
+    // Firebase notifies this callback whenever auth state changes. The code then checks the shared
+    // `users` document to confirm the signed-in account has the `admin` role before allowing access.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         navigate("/admin-login");
@@ -132,6 +148,10 @@ function AdminPanel() {
 
     let isMounted = true;
 
+    // loadDashboardData:
+    // This inner async function fetches the core collections needed by the admin UI:
+    // doctors, patients, and appointments. Once the raw Firestore documents arrive,
+    // the function normalizes them into shapes that are easier for tables and forms to use.
     const loadDashboardData = async () => {
       try {
         const [doctorSnap, patientSnap, appointmentSnap] = await Promise.all([
@@ -195,6 +215,10 @@ function AdminPanel() {
   }, [authLoading]);
 
   const filteredPatients = useMemo(() => {
+    // filteredPatients:
+    // Applies the shared admin search term to patient records.
+    // The search checks multiple patient fields so one search box can find a patient by name,
+    // condition, phone, or email.
     const queryValue = searchTerm.trim().toLowerCase();
     if (!queryValue) {
       return patients;
@@ -214,6 +238,8 @@ function AdminPanel() {
   }, [patients, searchTerm]);
 
   const filteredDoctors = useMemo(() => {
+    // filteredDoctors:
+    // Filters doctors by name, specialization, email, phone, or availability text.
     const queryValue = searchTerm.trim().toLowerCase();
     if (!queryValue) {
       return doctors;
@@ -236,6 +262,9 @@ function AdminPanel() {
   }, [doctors, searchTerm]);
 
   const filteredAppointments = useMemo(() => {
+    // filteredAppointments:
+    // Filters the appointment list using the shared search term so the admin can quickly
+    // find visits by patient, doctor, department, or status.
     const queryValue = searchTerm.trim().toLowerCase();
     if (!queryValue) {
       return appointments;
@@ -250,6 +279,8 @@ function AdminPanel() {
   }, [appointments, searchTerm]);
 
   const filteredBeds = useMemo(() => {
+    // filteredBeds:
+    // Filters the locally managed bed records by bed id, ward, assigned patient, status, or bed type.
     const queryValue = searchTerm.trim().toLowerCase();
     if (!queryValue) {
       return beds;
@@ -264,6 +295,8 @@ function AdminPanel() {
   }, [beds, searchTerm]);
 
   const filteredInventory = useMemo(() => {
+    // filteredInventory:
+    // Applies the same search term to the static inventory dataset used by the inventory tab.
     const queryValue = searchTerm.trim().toLowerCase();
     if (!queryValue) {
       return inventoryData.map((item) => ({ ...item, id: item.item }));
@@ -301,6 +334,8 @@ function AdminPanel() {
 
   const patientOptions = useMemo(
     () =>
+      // patientOptions:
+      // Converts patient records into the simple `{ id, name }` shape needed by dropdown menus.
       patients.map((patient) => ({
         id: patient.uid || patient.id,
         name: getPatientDisplayName(patient),
@@ -310,6 +345,9 @@ function AdminPanel() {
 
   const doctorOptions = useMemo(
     () =>
+      // doctorOptions:
+      // Converts full doctor records into a lighter dropdown-friendly shape and normalizes time slots
+      // so the appointment form can reason about day-based availability consistently.
       doctors.map((doctor) => ({
         id: doctor.id,
         name: doctor.name,
@@ -321,6 +359,11 @@ function AdminPanel() {
   );
 
   const availableAppointmentSlots = useMemo(() => {
+    // availableAppointmentSlots:
+    // Computes the free time slots for the currently selected doctor and date.
+    // It first checks whether that date matches the doctor's allowed availability days, then expands
+    // the doctor's saved slot ranges into individual bookable times, and finally removes slots that
+    // are already occupied by existing appointments.
     const selectedDoctor = doctorOptions.find((doctor) => doctor.id === appointmentForm.doctorId);
     if (!selectedDoctor) {
       return [];
@@ -349,6 +392,11 @@ function AdminPanel() {
   }, [appointmentForm.date, appointmentForm.doctorId, appointments, doctorOptions]);
 
   const handleDoctorSubmit = async (event) => {
+    // handleDoctorSubmit:
+    // Creates a brand-new doctor account for both Firebase Authentication and Firestore.
+    // The function validates the form, prevents duplicate email use, creates the doctor's login
+    // through the Firebase helper, saves doctor/user records, and then updates local dashboard state
+    // so the new doctor appears immediately in the directory.
     event.preventDefault();
 
     const {
@@ -458,6 +506,10 @@ function AdminPanel() {
   };
 
   const handlePatientSubmit = async (event) => {
+    // handlePatientSubmit:
+    // Saves a new patient record into the `patients` collection from the admin form.
+    // After validation and a successful Firestore write, the function also updates local state
+    // so the new patient shows up instantly in the patient list without a page refresh.
     event.preventDefault();
 
     const { name, age, gender, phone, address, bloodGroup, condition } = patientForm;
@@ -510,6 +562,9 @@ function AdminPanel() {
   };
 
   const handleAppointmentPatientChange = (patientUid) => {
+    // handleAppointmentPatientChange:
+    // When the admin picks a patient in the appointment form, this function stores both the id
+    // and the display name so the eventual appointment record can be written with readable metadata.
     const selectedPatient = patientOptions.find((patient) => patient.id === patientUid);
     setAppointmentForm((current) => ({
       ...current,
@@ -519,6 +574,10 @@ function AdminPanel() {
   };
 
   const handleAppointmentDoctorChange = (doctorId) => {
+    // handleAppointmentDoctorChange:
+    // Updates the selected doctor in the appointment form and auto-fills the department field
+    // using the chosen doctor's specialization. It also clears any previously selected time slot,
+    // because slot availability depends on which doctor is chosen.
     const selectedDoctor = doctorOptions.find((doctor) => doctor.id === doctorId);
     setAppointmentForm((current) => ({
       ...current,
@@ -530,6 +589,11 @@ function AdminPanel() {
   };
 
   const handleAppointmentSubmit = async (event) => {
+    // handleAppointmentSubmit:
+    // Books an appointment on behalf of a patient.
+    // It validates the required fields, checks the doctor's day-level availability, checks for an
+    // already occupied slot, writes a deterministic appointment document via a Firestore transaction,
+    // and then updates local state so the appointment table reflects the new booking immediately.
     event.preventDefault();
 
     const { patientUid, patientName, doctorId, doctorName, department, date, time } = appointmentForm;
@@ -619,6 +683,10 @@ function AdminPanel() {
   };
 
   const handleBedSubmit = (event) => {
+    // handleBedSubmit:
+    // Updates the local bed-management state.
+    // This feature is currently front-end/state based rather than Firestore-backed, so the function
+    // validates the chosen bed and assigned patient, then patches the relevant bed object in state.
     event.preventDefault();
 
     const { bedId, status, patient } = bedForm;
@@ -644,6 +712,10 @@ function AdminPanel() {
   };
 
   const handleDeleteDoctor = async (doctor) => {
+    // handleDeleteDoctor:
+    // Removes a doctor and the doctor-related records connected to that doctor.
+    // After user confirmation, it deletes linked appointments, linked prescriptions, matching `users`
+    // records, and the doctor document itself, then removes the doctor from local dashboard state.
     const confirmed = window.confirm(`Delete ${doctor.name} and all linked Firestore records?`);
     if (!confirmed) {
       return;
@@ -685,6 +757,10 @@ function AdminPanel() {
   };
 
   const handleAddDoctorTimeSlot = () => {
+    // handleAddDoctorTimeSlot:
+    // Takes the currently selected day/start/end values from the doctor form and turns them into
+    // one or more structured slot objects. If the admin picked "All selected days", the same range
+    // is copied to every enabled availability day. Duplicate slot labels for the same day are ignored.
     if (!doctorForm.slotDay || !doctorForm.slotStart || !doctorForm.slotEnd) {
       setDoctorError("Select a day, slot start, and slot end time.");
       return;
@@ -733,6 +809,10 @@ function AdminPanel() {
   };
 
   const handleToggleDoctorAvailabilityDay = (day) => {
+    // handleToggleDoctorAvailabilityDay:
+    // Adds or removes one day from the doctor's available days list.
+    // If a day is removed, any saved time slots attached to that day are also removed so the form data
+    // stays logically consistent.
     setDoctorForm((current) => {
       const removingDay = current.availabilityDays.includes(day);
       const nextDays = removingDay
@@ -751,6 +831,9 @@ function AdminPanel() {
   };
 
   const handleToggleAllDoctorAvailabilityDays = () => {
+    // handleToggleAllDoctorAvailabilityDays:
+    // Either selects all weekdays at once or clears them all, depending on the current form state.
+    // This helps the admin quickly configure doctors who are available every day.
     setDoctorForm((current) => {
       const enableAllDays = current.availabilityDays.length !== DAY_OPTIONS.length;
 
@@ -764,6 +847,8 @@ function AdminPanel() {
   };
 
   const handleRemoveDoctorTimeSlot = (slotToRemove) => {
+    // handleRemoveDoctorTimeSlot:
+    // Deletes one saved time-slot chip from the doctor form based on both day and label.
     setDoctorForm((current) => ({
       ...current,
       timeSlots: current.timeSlots.filter(
@@ -773,11 +858,16 @@ function AdminPanel() {
   };
 
   const handleLogout = async () => {
+    // handleLogout:
+    // Signs the admin out of Firebase and redirects them back to the admin login page.
     await signOut(auth);
     navigate("/admin-login");
   };
 
   if (authLoading || loading) {
+    // Loading state:
+    // Until both auth validation and initial data loading are complete, the page shows a branded
+    // loading shell instead of rendering partial dashboard content.
     return (
       <main className="admin-dashboard-page">
         <section className="admin-loading-shell">
@@ -795,6 +885,7 @@ function AdminPanel() {
   return (
     <main className="admin-dashboard-page">
       <div className="admin-layout">
+        {/* Sidebar receives the active section id and the navigation list from the parent controller. */}
         <AdminSidebar
           activeNav={activeNav}
           navigationItems={navigationItems}
@@ -802,12 +893,15 @@ function AdminPanel() {
         />
 
         <section className="admin-main">
+          {/* Topbar holds the shared search box and logout/home actions. */}
           <AdminTopbar
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             onLogout={handleLogout}
           />
 
+          {/* Each section below receives only the data and callbacks it needs.
+              This keeps the page organized while preserving one central source of truth for admin state. */}
           <AdminOverviewSection
             active={activeNav === "overview"}
             stats={stats}

@@ -11,6 +11,10 @@ export default function AdminPatientsSection({
   filteredPatients,
   onSubmit,
 }) {
+  // AdminPatientsSection:
+  // This component renders the patient-management tab.
+  // It shows a form for adding new patient records and a table of patient data that has already
+  // been filtered by the parent page's shared search term.
   return (
     <section id="patients" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -25,6 +29,7 @@ export default function AdminPatientsSection({
             <h3>Add patient</h3>
           </div>
           <form className="admin-form-grid" onSubmit={onSubmit}>
+            {/* These fields collect the basic demographic and admission information for a patient record. */}
             <label htmlFor="patient-name">Patient name</label>
             <input
               id="patient-name"
@@ -128,6 +133,7 @@ export default function AdminPatientsSection({
         </article>
 
         <DataTable
+          // The patient list table reuses the shared table component to keep styling and layout consistent.
           title="Patient list"
           emptyText="No patients found."
           columns={[

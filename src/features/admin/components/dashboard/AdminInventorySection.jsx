@@ -3,6 +3,17 @@
 import { DataTable, SectionHeader } from "./AdminDashboardCommon";
 
 export default function AdminInventorySection({ active, filteredInventory }) {
+  // AdminInventorySection:
+  // This component renders the inventory watchlist tab.
+  // The parent page pre-filters inventory items using the shared search term, and this function
+  // simply displays the resulting rows in the reusable admin table.
+  const inventoryColumns = [
+    { key: "item", label: "Item" },
+    { key: "remaining", label: "Remaining" },
+    { key: "threshold", label: "Threshold" },
+    { key: "vendor", label: "Vendor" },
+  ];
+
   return (
     <section id="inventory" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -14,12 +25,7 @@ export default function AdminInventorySection({ active, filteredInventory }) {
       <DataTable
         title="Inventory status"
         emptyText="Inventory data unavailable."
-        columns={[
-          { key: "item", label: "Item" },
-          { key: "remaining", label: "Remaining" },
-          { key: "threshold", label: "Threshold" },
-          { key: "vendor", label: "Vendor" },
-        ]}
+        columns={inventoryColumns}
         rows={filteredInventory}
       />
     </section>

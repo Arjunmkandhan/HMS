@@ -11,7 +11,10 @@ import "../../../shared/styles/auth.css";
 function AdminSignup() {
   const navigate = useNavigate();
 
-  // Controlled input and submission state.
+  // This state manages every moving part of the admin registration form.
+  // The text states keep each field controlled, `loading` prevents repeat submissions while
+  // Firebase is creating the account, and `error` gives the user a visible explanation when
+  // validation or account creation fails.
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +22,21 @@ function AdminSignup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Creates the Firebase Authentication account and matching Firestore user profile.
+  // What this function is for:
+  // It creates a brand-new administrator account for the hospital system.
+  //
+  // How it works:
+  // 1. Prevents the browser's default form refresh.
+  // 2. Verifies that the password and confirm-password fields match.
+  // 3. Uses Firebase Authentication to create the secure login credentials.
+  // 4. Writes a matching profile document into Firestore under `users/{uid}`.
+  // 5. Stores the essential role metadata (`role: "admin"`) that the admin login and dashboard
+  //    later use to authorize access.
+  // 6. Redirects the newly created admin user to the admin dashboard.
+  //
+  // How it integrates with other admin files:
+  // `AdminLoginPage.jsx` checks this saved Firestore role during login, and
+  // `AdminDashboardPage.jsx` assumes that an account reaching it has already been marked as admin.
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
@@ -67,11 +84,12 @@ function AdminSignup() {
           </ul>
         </aside>
 
-        {/* The actual admin registration form. */}
+        {/* The actual admin registration form. This is where the admin account gets created. */}
         <div className="auth-card">
           <h2>Admin Setup</h2>
           <p className="auth-subtext">Register a new administrative account.</p>
 
+          {/* This form collects the data required to create both the Auth account and Firestore profile. */}
           <form onSubmit={handleSignup} className="auth-form">
             <label htmlFor="signup-email">Official Email</label>
             <input

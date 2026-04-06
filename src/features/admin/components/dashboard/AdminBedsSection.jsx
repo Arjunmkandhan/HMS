@@ -12,6 +12,25 @@ export default function AdminBedsSection({
   filteredBeds,
   onSubmit,
 }) {
+  // AdminBedsSection:
+  // This component renders the bed-management tab.
+  // It lets the admin choose a bed, assign a status, optionally attach a patient, and then
+  // shows the resulting bed list through the shared table component.
+  // bedColumns:
+  // These columns define the table layout for the bed overview panel.
+  // The patient column adds a readable fallback so empty bed assignments are clearly labeled.
+  const bedColumns = [
+    { key: "id", label: "Bed ID" },
+    { key: "ward", label: "Ward" },
+    { key: "bedType", label: "Type" },
+    {
+      key: "patient",
+      label: "Patient",
+      render: (row) => row.patient || "Unassigned",
+    },
+    { key: "status", label: "Status" },
+  ];
+
   return (
     <section id="beds" className={`admin-page-section ${active ? "active" : ""}`}>
       <SectionHeader
@@ -26,6 +45,7 @@ export default function AdminBedsSection({
             <h3>Update bed status</h3>
           </div>
           <form className="admin-form-grid" onSubmit={onSubmit}>
+            {/* Bed selection chooses which local-state bed record should be updated. */}
             <label htmlFor="bed-id">Bed</label>
             <select
               id="bed-id"
@@ -61,6 +81,7 @@ export default function AdminBedsSection({
               <option value="Maintenance">Maintenance</option>
             </select>
 
+            {/* Patient selection is only enabled when the admin marks the bed as occupied. */}
             <label htmlFor="bed-patient">Assigned patient</label>
             <select
               id="bed-patient"
@@ -92,17 +113,7 @@ export default function AdminBedsSection({
         <DataTable
           title="Bed overview"
           emptyText="No beds found."
-          columns={[
-            { key: "id", label: "Bed ID" },
-            { key: "ward", label: "Ward" },
-            { key: "bedType", label: "Type" },
-            {
-              key: "patient",
-              label: "Patient",
-              render: (row) => row.patient || "Unassigned",
-            },
-            { key: "status", label: "Status" },
-          ]}
+          columns={bedColumns}
           rows={filteredBeds}
         />
       </div>
