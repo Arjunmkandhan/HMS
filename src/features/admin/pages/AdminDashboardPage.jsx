@@ -1,9 +1,9 @@
 // Admin dashboard page:
-// This is the central control panel for the HMS website.
-// It loads doctors, patients, appointments, and bed data, powers the admin search bar,
-// and renders management sections for doctors, patients, appointments, beds, billing, and inventory.
+// This file is now the data/controller layer for the admin portal.
+// It loads Firestore data, manages form state and actions, and passes that information
+// into smaller dashboard section components for rendering.
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   collection,
@@ -17,20 +17,6 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { auth, createDoctorAuthAccount, db } from "../../../lib/firebase";
 import {
   buildAppointmentSlotId,
@@ -40,190 +26,36 @@ import {
   isDateWithinAvailability,
   normalizeDoctorTimeSlots,
 } from "../../../shared/utils/appointmentSlots";
+import AdminAppointmentsSection from "../components/dashboard/AdminAppointmentsSection";
+import AdminBedsSection from "../components/dashboard/AdminBedsSection";
+import AdminBillingSection from "../components/dashboard/AdminBillingSection";
+import {
+  DAY_OPTIONS,
+  appointmentAnalyticsData,
+  bedChartColors,
+  initialBeds,
+  inventoryData,
+  navigationItems,
+  patientGrowthData,
+} from "../components/dashboard/AdminDashboardConstants";
+import {
+  getDoctorDepartment,
+  getPatientDisplayName,
+  normalizePhoneNumber,
+  formatTimeLabel,
+} from "../components/dashboard/AdminDashboardUtils";
+import AdminDoctorsSection from "../components/dashboard/AdminDoctorsSection";
+import AdminInventorySection from "../components/dashboard/AdminInventorySection";
+import AdminOverviewSection from "../components/dashboard/AdminOverviewSection";
+import AdminPatientsSection from "../components/dashboard/AdminPatientsSection";
+import AdminSidebar from "../components/dashboard/AdminSidebar";
+import AdminTopbar from "../components/dashboard/AdminTopbar";
 import "../../../shared/styles/admin.css";
-
-const initialBeds = [
-  { id: "BED-01", ward: "ICU", patient: "Kabir Patel", status: "Occupied", bedType: "Critical Care" },
-  { id: "BED-02", ward: "ICU", patient: "", status: "Available", bedType: "Critical Care" },
-  { id: "BED-03", ward: "General", patient: "Aarav Sharma", status: "Occupied", bedType: "Standard" },
-  { id: "BED-04", ward: "General", patient: "", status: "Available", bedType: "Standard" },
-  { id: "BED-05", ward: "Pediatrics", patient: "Anaya Singh", status: "Occupied", bedType: "Pediatric" },
-  { id: "BED-06", ward: "Private", patient: "", status: "Maintenance", bedType: "Premium" },
-  { id: "BED-07", ward: "Private", patient: "Rohan Verma", status: "Occupied", bedType: "Premium" },
-  { id: "BED-08", ward: "General", patient: "", status: "Available", bedType: "Standard" },
-];
-
-const DAY_OPTIONS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
-function formatTimeLabel(timeValue) {
-  // Converts 24-hour HTML input values into the 12-hour labels shown in saved time slots.
-  if (!timeValue) {
-    return "";
-  }
-
-  const [rawHours, rawMinutes] = timeValue.split(":");
-  const hours = Number(rawHours);
-  const minutes = rawMinutes || "00";
-  const suffix = hours >= 12 ? "PM" : "AM";
-  const normalizedHours = hours % 12 || 12;
-
-  return `${String(normalizedHours).padStart(2, "0")}:${minutes} ${suffix}`;
-}
-
-function normalizePhoneNumber(phoneValue) {
-  // Strips non-digit characters so phone numbers stay clean before saving.
-  return String(phoneValue || "").replace(/\D/g, "").slice(0, 10);
-}
-
-const inventoryData = [
-  { item: "N95 Masks", remaining: 42, threshold: 60, vendor: "MediSafe Supplies" },
-  { item: "Syringes", remaining: 110, threshold: 120, vendor: "CareLine Pharma" },
-  { item: "IV Fluids", remaining: 26, threshold: 40, vendor: "VitalMed" },
-  { item: "Antibiotic Vials", remaining: 18, threshold: 25, vendor: "HealthBridge Labs" },
-];
-
-const patientGrowthData = [
-  { month: "Nov", patients: 220 },
-  { month: "Dec", patients: 248 },
-  { month: "Jan", patients: 286 },
-  { month: "Feb", patients: 312 },
-  { month: "Mar", patients: 348 },
-  { month: "Apr", patients: 389 },
-];
-
-const appointmentAnalyticsData = [
-  { name: "Cardiology", appointments: 32 },
-  { name: "Neurology", appointments: 24 },
-  { name: "Orthopedics", appointments: 28 },
-  { name: "Pediatrics", appointments: 30 },
-  { name: "Dermatology", appointments: 18 },
-];
-
-const bedChartColors = ["#0b63f6", "#58a6ff", "#b8d7ff"];
-
-const navigationItems = [
-  { id: "overview", label: "Dashboard" },
-  { id: "doctors", label: "Doctors" },
-  { id: "patients", label: "Patients" },
-  { id: "appointments", label: "Appointments" },
-  { id: "beds", label: "Beds" },
-  { id: "billing", label: "Billing" },
-  { id: "inventory", label: "Inventory" },
-];
-
-function formatDisplayDate(dateValue) {
-  // Shared date formatter used across tables and analytics cards.
-  if (!dateValue) {
-    return "Not set";
-  }
-  return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatSpecialization(specialization) {
-  // Doctors may store specialization as an array, so this helper produces one clean label for display.
-  if (Array.isArray(specialization)) {
-    return specialization.join(", ");
-  }
-
-  return specialization || "General";
-}
-
-function getDoctorDepartment(doctor) {
-  // The appointment form uses the doctor's first specialization as the department name.
-  if (!doctor) {
-    return "";
-  }
-
-  return Array.isArray(doctor.specialization)
-    ? doctor.specialization[0] || ""
-    : doctor.specialization || "";
-}
-
-function getPatientDisplayName(patient) {
-  // Patients may use either `name` or `fullName` depending on how the record was created.
-  return patient?.name || patient?.fullName || "Unnamed patient";
-}
-
-function SectionHeader({ eyebrow, title, description }) {
-  // Reusable section heading used across all admin tabs to keep the dashboard layout consistent.
-  return (
-    <div className="admin-section-head">
-      <div>
-        <p className="admin-section-eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, helper }) {
-  // Small summary card used in overview, billing, and other snapshot sections.
-  return (
-    <article className="admin-stat-card">
-      <p>{label}</p>
-      <strong>{value}</strong>
-      <span>{helper}</span>
-    </article>
-  );
-}
-
-function DataTable({ title, columns, rows, emptyText }) {
-  // Generic admin table component:
-  // Many admin sections reuse this so the table layout stays consistent across doctors,
-  // patients, appointments, beds, and inventory.
-  return (
-    <article className="admin-panel-card">
-      <div className="admin-card-top">
-        <h3>{title}</h3>
-      </div>
-      {rows.length === 0 ? (
-        <p className="admin-empty-state">{emptyText}</p>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                {columns.map((column) => (
-                  <th key={column.key}>{column.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  {columns.map((column) => (
-                    <td key={column.key}>
-                      {column.render ? column.render(row) : row[column.key]}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </article>
-  );
-}
 
 function AdminPanel() {
   const todayDate = new Date().toISOString().slice(0, 10);
   const navigate = useNavigate();
 
-  // Screen state for loading, navigation, search, and management forms.
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState("overview");
@@ -269,16 +101,16 @@ function AdminPanel() {
   const [bedError, setBedError] = useState("");
 
   useEffect(() => {
-    // Access control:
-    // Only authenticated admin accounts are allowed to remain on this page.
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         navigate("/admin-login");
         return;
       }
+
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
+
         if (userSnap.exists() && userSnap.data().role === "admin") {
           setAuthLoading(false);
         } else {
@@ -300,8 +132,6 @@ function AdminPanel() {
 
     let isMounted = true;
 
-    // Initial dashboard load:
-    // Fetch all major collections needed by the admin overview and management tabs.
     const loadDashboardData = async () => {
       try {
         const [doctorSnap, patientSnap, appointmentSnap] = await Promise.all([
@@ -318,6 +148,7 @@ function AdminPanel() {
           id: item.id,
           ...item.data(),
         }));
+
         const patientData = patientSnap.docs.map((item) => ({
           id: item.id,
           ...item.data(),
@@ -326,6 +157,7 @@ function AdminPanel() {
             item.data().createdAt?.toDate?.().toISOString().slice(0, 10) ||
             "",
         }));
+
         const appointmentData = appointmentSnap.docs.map((item) => {
           const data = item.data();
           return {
@@ -345,8 +177,6 @@ function AdminPanel() {
         setDoctors(doctorData);
         setPatients(patientData);
         setAppointments(appointmentData);
-
-        // Bed data is currently local demo/state data rather than Firestore-backed data.
         setBeds(initialBeds);
       } catch (error) {
         console.error("Failed to load admin dashboard data", error);
@@ -364,13 +194,12 @@ function AdminPanel() {
     };
   }, [authLoading]);
 
-  // Admin search bar:
-  // One search term is shared across multiple tabs, and each dataset computes its own filtered version.
   const filteredPatients = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) {
+    const queryValue = searchTerm.trim().toLowerCase();
+    if (!queryValue) {
       return patients;
     }
+
     return patients.filter((patient) =>
       [
         getPatientDisplayName(patient),
@@ -380,15 +209,16 @@ function AdminPanel() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(query)
+        .includes(queryValue)
     );
   }, [patients, searchTerm]);
 
   const filteredDoctors = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) {
+    const queryValue = searchTerm.trim().toLowerCase();
+    if (!queryValue) {
       return doctors;
     }
+
     return doctors.filter((doctor) =>
       [
         doctor.name,
@@ -401,54 +231,54 @@ function AdminPanel() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(query)
+        .includes(queryValue)
     );
   }, [doctors, searchTerm]);
 
   const filteredAppointments = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) {
+    const queryValue = searchTerm.trim().toLowerCase();
+    if (!queryValue) {
       return appointments;
     }
+
     return appointments.filter((appointment) =>
       [appointment.patient, appointment.doctor, appointment.department, appointment.status]
         .join(" ")
         .toLowerCase()
-        .includes(query)
+        .includes(queryValue)
     );
   }, [appointments, searchTerm]);
 
   const filteredBeds = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) {
+    const queryValue = searchTerm.trim().toLowerCase();
+    if (!queryValue) {
       return beds;
     }
+
     return beds.filter((bed) =>
       [bed.id, bed.ward, bed.patient, bed.status, bed.bedType]
         .join(" ")
         .toLowerCase()
-        .includes(query)
+        .includes(queryValue)
     );
   }, [beds, searchTerm]);
 
   const filteredInventory = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) {
+    const queryValue = searchTerm.trim().toLowerCase();
+    if (!queryValue) {
       return inventoryData.map((item) => ({ ...item, id: item.item }));
     }
+
     return inventoryData
-      .filter((item) => [item.item, item.vendor].join(" ").toLowerCase().includes(query))
+      .filter((item) => [item.item, item.vendor].join(" ").toLowerCase().includes(queryValue))
       .map((item) => ({ ...item, id: item.item }));
   }, [searchTerm]);
 
-  // Derived overview metrics shown in the admin dashboard summary cards and charts.
   const totalBeds = beds.length;
   const availableBeds = beds.filter((bed) => bed.status === "Available").length;
   const occupiedBeds = beds.filter((bed) => bed.status === "Occupied").length;
   const maintenanceBeds = beds.filter((bed) => bed.status === "Maintenance").length;
-  const appointmentsToday = appointments.filter(
-    (appointment) => appointment.date === todayDate
-  ).length;
+  const appointmentsToday = appointments.filter((appointment) => appointment.date === todayDate).length;
 
   const stats = [
     { label: "Total Doctors", value: doctors.length, helper: "Across core hospital departments" },
@@ -469,7 +299,6 @@ function AdminPanel() {
     ? [{ title: "Low bed availability", note: `${availableBeds} beds are currently open for admissions.` }]
     : [{ title: "Bed capacity stable", note: `${availableBeds} beds remain available across wards.` }];
 
-  // Booking form options derived from the currently loaded patient and doctor datasets.
   const patientOptions = useMemo(
     () =>
       patients.map((patient) => ({
@@ -478,6 +307,7 @@ function AdminPanel() {
       })),
     [patients]
   );
+
   const doctorOptions = useMemo(
     () =>
       doctors.map((doctor) => ({
@@ -490,7 +320,6 @@ function AdminPanel() {
     [doctors]
   );
 
-  // Computes which doctor time slots remain available for the selected appointment date.
   const availableAppointmentSlots = useMemo(() => {
     const selectedDoctor = doctorOptions.find((doctor) => doctor.id === appointmentForm.doctorId);
     if (!selectedDoctor) {
@@ -505,6 +334,7 @@ function AdminPanel() {
       selectedDoctor.timeSlots || [],
       getDayNameFromDate(appointmentForm.date)
     );
+
     const occupiedSlots = appointments
       .filter(
         (appointment) =>
@@ -520,6 +350,7 @@ function AdminPanel() {
 
   const handleDoctorSubmit = async (event) => {
     event.preventDefault();
+
     const {
       name,
       specialization,
@@ -529,20 +360,13 @@ function AdminPanel() {
       availabilityDays,
       timeSlots,
     } = doctorForm;
+
     const parsedTimeSlots = Array.isArray(timeSlots) ? timeSlots.filter(Boolean) : [];
     const availability = Array.isArray(availabilityDays) ? availabilityDays.join(", ") : "";
     const normalizedPhone = normalizePhoneNumber(phone);
 
-    // Validate the minimum information required to create a doctor login and dashboard profile.
-    if (
-      !name.trim() ||
-      !specialization.trim() ||
-      !email.trim() ||
-      password.trim().length < 6
-    ) {
-      setDoctorError(
-        "Enter doctor name, email, specialization, and a password of at least 6 characters."
-      );
+    if (!name.trim() || !specialization.trim() || !email.trim() || password.trim().length < 6) {
+      setDoctorError("Enter doctor name, email, specialization, and a password of at least 6 characters.");
       return;
     }
 
@@ -563,12 +387,7 @@ function AdminPanel() {
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
-
-      // Prevent duplicate doctor identities by checking the shared users collection first.
-      const existingDoctorQuery = query(
-        collection(db, "users"),
-        where("email", "==", normalizedEmail)
-      );
+      const existingDoctorQuery = query(collection(db, "users"), where("email", "==", normalizedEmail));
       const existingDoctorSnap = await getDocs(existingDoctorQuery);
 
       if (!existingDoctorSnap.empty) {
@@ -576,10 +395,7 @@ function AdminPanel() {
         return;
       }
 
-      const createdDoctorUser = await createDoctorAuthAccount(
-        normalizedEmail,
-        password.trim()
-      );
+      const createdDoctorUser = await createDoctorAuthAccount(normalizedEmail, password.trim());
 
       const payload = {
         uid: createdDoctorUser.uid,
@@ -607,7 +423,6 @@ function AdminPanel() {
 
       await setDoc(doc(db, "doctors", createdDoctorUser.uid), payload);
 
-      // Update the local table immediately so the admin sees the new doctor without a refresh.
       setDoctors((current) => [
         {
           id: createdDoctorUser.uid,
@@ -644,21 +459,12 @@ function AdminPanel() {
 
   const handlePatientSubmit = async (event) => {
     event.preventDefault();
-    const { name, age, gender, phone, address, bloodGroup, condition } =
-      patientForm;
+
+    const { name, age, gender, phone, address, bloodGroup, condition } = patientForm;
     const normalizedPhone = normalizePhoneNumber(phone);
 
-    if (
-      !name.trim() ||
-      !age ||
-      !normalizedPhone ||
-      !address.trim() ||
-      !bloodGroup.trim() ||
-      !condition.trim()
-    ) {
-      setPatientError(
-        "Complete patient name, age, phone, address, blood group, and condition."
-      );
+    if (!name.trim() || !age || !normalizedPhone || !address.trim() || !bloodGroup.trim() || !condition.trim()) {
+      setPatientError("Complete patient name, age, phone, address, blood group, and condition.");
       return;
     }
 
@@ -668,7 +474,6 @@ function AdminPanel() {
     }
 
     try {
-      // Patients added by admin are stored directly in the `patients` collection.
       const patientRef = doc(collection(db, "patients"));
       const payload = {
         uid: patientRef.id,
@@ -687,7 +492,6 @@ function AdminPanel() {
       };
 
       await setDoc(patientRef, payload);
-
       setPatients((current) => [{ id: patientRef.id, ...payload }, ...current]);
       setPatientForm({
         name: "",
@@ -706,7 +510,6 @@ function AdminPanel() {
   };
 
   const handleAppointmentPatientChange = (patientUid) => {
-    // Selecting a patient auto-fills the patient name in the appointment payload.
     const selectedPatient = patientOptions.find((patient) => patient.id === patientUid);
     setAppointmentForm((current) => ({
       ...current,
@@ -716,7 +519,6 @@ function AdminPanel() {
   };
 
   const handleAppointmentDoctorChange = (doctorId) => {
-    // Selecting a doctor also auto-fills the department and resets the chosen time slot.
     const selectedDoctor = doctorOptions.find((doctor) => doctor.id === doctorId);
     setAppointmentForm((current) => ({
       ...current,
@@ -729,8 +531,8 @@ function AdminPanel() {
 
   const handleAppointmentSubmit = async (event) => {
     event.preventDefault();
-    const { patientUid, patientName, doctorId, doctorName, department, date, time } =
-      appointmentForm;
+
+    const { patientUid, patientName, doctorId, doctorName, department, date, time } = appointmentForm;
 
     if (!patientUid || !doctorId || !department || !date || !time) {
       setAppointmentError("Select patient, doctor, date, and time before booking.");
@@ -738,7 +540,6 @@ function AdminPanel() {
     }
 
     try {
-      // Validate day-level doctor availability before checking individual slot conflicts.
       const selectedDoctor = doctorOptions.find((doctor) => doctor.id === doctorId);
       if (!isDateWithinAvailability(date, selectedDoctor?.availability)) {
         setAppointmentError("The selected doctor is not available on that day.");
@@ -772,6 +573,7 @@ function AdminPanel() {
         status: "pending",
         createdAt: serverTimestamp(),
       };
+
       const appointmentRef = doc(
         db,
         "appointments",
@@ -779,7 +581,6 @@ function AdminPanel() {
       );
 
       await runTransaction(db, async (transaction) => {
-        // The deterministic appointment ID ensures that one doctor/time slot can only be booked once.
         const existingSlotDoc = await transaction.get(appointmentRef);
         if (existingSlotDoc.exists()) {
           throw new Error("slot-already-booked");
@@ -818,17 +619,19 @@ function AdminPanel() {
   };
 
   const handleBedSubmit = (event) => {
-    // Bed updates are currently local-state changes and are not persisted to Firestore.
     event.preventDefault();
+
     const { bedId, status, patient } = bedForm;
     if (!bedId) {
       setBedError("Choose a bed to update.");
       return;
     }
+
     if (status === "Occupied" && !patient) {
       setBedError("Select a patient when assigning an occupied bed.");
       return;
     }
+
     setBeds((current) =>
       current.map((bed) =>
         bed.id === bedId
@@ -841,42 +644,27 @@ function AdminPanel() {
   };
 
   const handleDeleteDoctor = async (doctor) => {
-    // Deleting a doctor also removes linked appointments, prescriptions, and matching user records.
-    const confirmed = window.confirm(
-      `Delete ${doctor.name} and all linked Firestore records?`
-    );
-
+    const confirmed = window.confirm(`Delete ${doctor.name} and all linked Firestore records?`);
     if (!confirmed) {
       return;
     }
 
     try {
-      const appointmentQuery = query(
-        collection(db, "appointments"),
-        where("doctorId", "==", doctor.id)
-      );
+      const appointmentQuery = query(collection(db, "appointments"), where("doctorId", "==", doctor.id));
       const appointmentSnap = await getDocs(appointmentQuery);
       await Promise.all(appointmentSnap.docs.map((item) => deleteDoc(item.ref)));
 
-      const prescriptionQuery = query(
-        collection(db, "prescriptions"),
-        where("doctorId", "==", doctor.id)
-      );
+      const prescriptionQuery = query(collection(db, "prescriptions"), where("doctorId", "==", doctor.id));
       const prescriptionSnap = await getDocs(prescriptionQuery);
       await Promise.all(prescriptionSnap.docs.map((item) => deleteDoc(item.ref)));
 
-      const userQueryByEmail = query(
-        collection(db, "users"),
-        where("email", "==", (doctor.email || "").toLowerCase())
-      );
-      const userQueryByDoctorId = query(
-        collection(db, "users"),
-        where("doctorId", "==", doctor.id)
-      );
+      const userQueryByEmail = query(collection(db, "users"), where("email", "==", (doctor.email || "").toLowerCase()));
+      const userQueryByDoctorId = query(collection(db, "users"), where("doctorId", "==", doctor.id));
       const [userSnapByEmail, userSnapByDoctorId] = await Promise.all([
         getDocs(userQueryByEmail),
         getDocs(userQueryByDoctorId),
       ]);
+
       const userRefs = [
         ...userSnapByEmail.docs.map((item) => item.ref),
         ...userSnapByDoctorId.docs.map((item) => item.ref),
@@ -884,14 +672,12 @@ function AdminPanel() {
         refs.set(ref.path, ref);
         return refs;
       }, new Map());
-      await Promise.all([...userRefs.values()].map((ref) => deleteDoc(ref)));
 
+      await Promise.all([...userRefs.values()].map((ref) => deleteDoc(ref)));
       await deleteDoc(doc(db, "doctors", doctor.id));
 
       setDoctors((current) => current.filter((item) => item.id !== doctor.id));
-      setAppointments((current) =>
-        current.filter((item) => item.doctorId !== doctor.id)
-      );
+      setAppointments((current) => current.filter((item) => item.doctorId !== doctor.id));
     } catch (error) {
       console.error("Failed to delete doctor", error);
       setDoctorError("Unable to delete doctor from Firestore.");
@@ -899,7 +685,6 @@ function AdminPanel() {
   };
 
   const handleAddDoctorTimeSlot = () => {
-    // Converts the admin's selected time range into one or more saved day-specific slot labels.
     if (!doctorForm.slotDay || !doctorForm.slotStart || !doctorForm.slotEnd) {
       setDoctorError("Select a day, slot start, and slot end time.");
       return;
@@ -948,7 +733,6 @@ function AdminPanel() {
   };
 
   const handleToggleDoctorAvailabilityDay = (day) => {
-    // Toggling a day updates availability and also removes slots for days that were deselected.
     setDoctorForm((current) => {
       const removingDay = current.availabilityDays.includes(day);
       const nextDays = removingDay
@@ -967,7 +751,6 @@ function AdminPanel() {
   };
 
   const handleToggleAllDoctorAvailabilityDays = () => {
-    // This helper quickly selects or clears all days in the availability picker.
     setDoctorForm((current) => {
       const enableAllDays = current.availabilityDays.length !== DAY_OPTIONS.length;
 
@@ -981,7 +764,6 @@ function AdminPanel() {
   };
 
   const handleRemoveDoctorTimeSlot = (slotToRemove) => {
-    // Clicking a saved chip removes that slot from the doctor creation form.
     setDoctorForm((current) => ({
       ...current,
       timeSlots: current.timeSlots.filter(
@@ -991,7 +773,6 @@ function AdminPanel() {
   };
 
   const handleLogout = async () => {
-    // End the admin session and return to the admin login page.
     await signOut(auth);
     navigate("/admin-login");
   };
@@ -1014,823 +795,89 @@ function AdminPanel() {
   return (
     <main className="admin-dashboard-page">
       <div className="admin-layout">
-        {/* Left sidebar controls which admin section is visible. */}
-        <aside className="admin-sidebar">
-          <div className="admin-sidebar-brand">
-            <p>Hospital Management</p>
-            <h1>Admin Dashboard</h1>
-            <span>Operations, admissions, and daily monitoring</span>
-          </div>
-
-          <nav className="admin-sidebar-nav">
-            {/* Each button switches the active admin tab without changing the route. */}
-            {navigationItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={activeNav === item.id ? "active" : ""}
-                onClick={() => setActiveNav(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        </aside>
+        <AdminSidebar
+          activeNav={activeNav}
+          navigationItems={navigationItems}
+          onNavigate={setActiveNav}
+        />
 
         <section className="admin-main">
-          <header className="admin-topbar">
-            <div>
-              <p className="admin-section-eyebrow">Central Command</p>
-              <h2>Welcome, Admin</h2>
-              <p>Monitor hospital activity, manage teams, and respond to capacity changes.</p>
-            </div>
+          <AdminTopbar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onLogout={handleLogout}
+          />
 
-            <div className="admin-topbar-tools">
-              {/* This search bar powers filtering for doctors, patients, appointments, beds, and inventory. */}
-              <label className="admin-search">
-                <span>Search records</span>
-                <input type="search" placeholder="Search patients, appointments, or departments" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
-              </label>
+          <AdminOverviewSection
+            active={activeNav === "overview"}
+            stats={stats}
+            patientGrowthData={patientGrowthData}
+            appointmentAnalyticsData={appointmentAnalyticsData}
+            bedOccupancyData={bedOccupancyData}
+            bedChartColors={bedChartColors}
+            filteredPatients={filteredPatients}
+            filteredAppointments={filteredAppointments}
+            lowStockAlerts={lowStockAlerts}
+            bedAlerts={bedAlerts}
+            getAppointmentSortValue={getAppointmentSortValue}
+          />
 
-              {/* Profile card gives quick identity, sign-out, and return-home actions. */}
-              <div className="admin-profile-card">
-                <strong>Gowtham</strong>
-                
-                <small>gowtham@hms.com</small>
-                <button type="button" className="admin-profile-action" onClick={handleLogout}>
-                  Sign Out
-                </button>
-                <Link to="/" className="admin-home-link">
-                  Back to Home
-                </Link>
-              </div>
-            </div>
-          </header>
+          <AdminDoctorsSection
+            active={activeNav === "doctors"}
+            doctorForm={doctorForm}
+            setDoctorForm={setDoctorForm}
+            doctorError={doctorError}
+            dayOptions={DAY_OPTIONS}
+            appointments={appointments}
+            filteredDoctors={filteredDoctors}
+            onSubmit={handleDoctorSubmit}
+            onDeleteDoctor={handleDeleteDoctor}
+            onToggleAllAvailabilityDays={handleToggleAllDoctorAvailabilityDays}
+            onToggleAvailabilityDay={handleToggleDoctorAvailabilityDay}
+            onAddTimeSlot={handleAddDoctorTimeSlot}
+            onRemoveTimeSlot={handleRemoveDoctorTimeSlot}
+          />
 
-          <section id="overview" className={`admin-page-section ${activeNav === "overview" ? "active" : ""}`}>
-            {/* Overview tab:
-                Displays the main dashboard snapshot with stat cards, charts, alerts, and summary tables. */}
-            <SectionHeader eyebrow="Live Overview" title="Hospital performance snapshot" description="Core metrics, trend views, and watchlist items for today’s operations." />
+          <AdminPatientsSection
+            active={activeNav === "patients"}
+            patientForm={patientForm}
+            setPatientForm={setPatientForm}
+            patientError={patientError}
+            filteredPatients={filteredPatients}
+            onSubmit={handlePatientSubmit}
+          />
 
-            <div className="admin-stats-grid">
-              {stats.map((item) => (
-                <StatCard key={item.label} {...item} />
-              ))}
-            </div>
+          <AdminAppointmentsSection
+            active={activeNav === "appointments"}
+            appointmentForm={appointmentForm}
+            setAppointmentForm={setAppointmentForm}
+            patientOptions={patientOptions}
+            doctorOptions={doctorOptions}
+            availableAppointmentSlots={availableAppointmentSlots}
+            appointmentError={appointmentError}
+            filteredAppointments={filteredAppointments}
+            onSubmit={handleAppointmentSubmit}
+            onPatientChange={handleAppointmentPatientChange}
+            onDoctorChange={handleAppointmentDoctorChange}
+          />
 
-            <div className="admin-chart-grid">
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Patient growth</h3>
-                  <span>Last six months</span>
-                </div>
-                <div className="admin-chart-box">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={patientGrowthData}>
-                      <XAxis dataKey="month" stroke="#5a6d8a" />
-                      <YAxis stroke="#5a6d8a" />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="patients" stroke="#0b63f6" strokeWidth={3} dot={{ r: 4 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </article>
+          <AdminBedsSection
+            active={activeNav === "beds"}
+            bedForm={bedForm}
+            setBedForm={setBedForm}
+            bedError={bedError}
+            beds={beds}
+            patientOptions={patientOptions}
+            filteredBeds={filteredBeds}
+            onSubmit={handleBedSubmit}
+          />
 
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Appointments analytics</h3>
-                  <span>Department wise activity</span>
-                </div>
-                <div className="admin-chart-box">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={appointmentAnalyticsData}>
-                      <XAxis dataKey="name" stroke="#5a6d8a" />
-                      <YAxis stroke="#5a6d8a" />
-                      <Tooltip />
-                      <Bar dataKey="appointments" fill="#1e84ff" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </article>
+          <AdminBillingSection active={activeNav === "billing"} />
 
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Bed occupancy</h3>
-                  <span>Current utilization</span>
-                </div>
-                <div className="admin-chart-box">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={bedOccupancyData} cx="50%" cy="50%" innerRadius={56} outerRadius={88} paddingAngle={4} dataKey="value">
-                        {bedOccupancyData.map((entry, index) => (
-                          <Cell key={entry.name} fill={bedChartColors[index % bedChartColors.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </article>
-            </div>
-
-            <div className="admin-data-grid">
-              <DataTable
-                title="Recent patients"
-                emptyText="No patient entries match the current search."
-                columns={[
-                  {
-                    key: "name",
-                    label: "Patient",
-                    render: (row) => getPatientDisplayName(row),
-                  },
-                  { key: "condition", label: "Condition" },
-                  { key: "phone", label: "Phone" },
-                  {
-                    key: "admittedOn",
-                    label: "Admitted",
-                    render: (row) => formatDisplayDate(row.admittedOn),
-                  },
-                ]}
-                rows={[...filteredPatients]
-                  .sort((a, b) => new Date(b.admittedOn) - new Date(a.admittedOn))
-                  .slice(0, 5)}
-              />
-
-              <DataTable
-                title="Upcoming appointments"
-                emptyText="No appointment records match the current search."
-                columns={[
-                  { key: "patient", label: "Patient" },
-                  { key: "doctor", label: "Doctor" },
-                  { key: "department", label: "Department" },
-                  {
-                    key: "schedule",
-                    label: "Schedule",
-                    render: (row) => `${formatDisplayDate(row.date)} at ${row.time}`,
-                  },
-                ]}
-                rows={[...filteredAppointments]
-                  .sort(
-                    (a, b) =>
-                      getAppointmentSortValue(a.date, a.time) -
-                      getAppointmentSortValue(b.date, b.time)
-                  )
-                  .slice(0, 6)}
-              />
-            </div>
-
-            <div className="admin-alert-grid">
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Low stock warnings</h3>
-                </div>
-                <div className="admin-alert-list">
-                  {lowStockAlerts.map((item) => (
-                    <div className="admin-alert-item warning" key={item.item}>
-                      <strong>{item.item}</strong>
-                      <span>
-                        {item.remaining} units remaining. Reorder threshold is {item.threshold}.
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Bed availability alerts</h3>
-                </div>
-                <div className="admin-alert-list">
-                  {bedAlerts.map((item) => (
-                    <div className="admin-alert-item info" key={item.title}>
-                      <strong>{item.title}</strong>
-                      <span>{item.note}</span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section id="doctors" className={`admin-page-section ${activeNav === "doctors" ? "active" : ""}`}>
-            {/* Doctors tab:
-                Used to add doctors, configure their availability, and manage the doctor directory. */}
-            <SectionHeader
-              eyebrow="Doctor Management"
-              title="Add and review doctors"
-              description="Register doctors with their department and consultation availability."
-            />
-
-            <div className="admin-management-grid">
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Add doctor</h3>
-                </div>
-                {/* This form creates both the Firebase Auth doctor account and the Firestore doctor/user records. */}
-                <form className="admin-form-grid" onSubmit={handleDoctorSubmit}>
-                  <label htmlFor="doctor-name">Doctor name</label>
-                  <input
-                    id="doctor-name"
-                    type="text"
-                    value={doctorForm.name}
-                    onChange={(event) =>
-                      setDoctorForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                    placeholder="Enter full name"
-                  />
-
-                  <label htmlFor="doctor-specialization">Specialization</label>
-                  <input
-                    id="doctor-specialization"
-                    type="text"
-                    value={doctorForm.specialization}
-                    onChange={(event) =>
-                      setDoctorForm((current) => ({
-                        ...current,
-                        specialization: event.target.value,
-                      }))
-                    }
-                    placeholder="Cardiology"
-                  />
-
-                  <label htmlFor="doctor-email">Email</label>
-                  <input
-                    id="doctor-email"
-                    type="email"
-                    value={doctorForm.email}
-                    onChange={(event) =>
-                      setDoctorForm((current) => ({
-                        ...current,
-                        email: event.target.value,
-                      }))
-                    }
-                    placeholder="doctor@hospital.com"
-                  />
-
-                  <label htmlFor="doctor-password">Password</label>
-                  <input
-                    id="doctor-password"
-                    type="password"
-                    value={doctorForm.password}
-                    onChange={(event) =>
-                      setDoctorForm((current) => ({
-                        ...current,
-                        password: event.target.value,
-                      }))
-                    }
-                    placeholder="Minimum 6 characters"
-                  />
-
-                  <label htmlFor="doctor-phone">Phone</label>
-                  <input
-                    id="doctor-phone"
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={doctorForm.phone}
-                    onChange={(event) =>
-                      setDoctorForm((current) => ({
-                        ...current,
-                        phone: normalizePhoneNumber(event.target.value),
-                      }))
-                    }
-                    placeholder="9876543210"
-                  />
-
-                  <label htmlFor="doctor-availability">Availability</label>
-                  <div id="doctor-availability" className="admin-slot-list">
-                    <button
-                      type="button"
-                      className={`admin-slot-chip ${doctorForm.availabilityDays.length === DAY_OPTIONS.length ? "active" : ""}`}
-                      onClick={handleToggleAllDoctorAvailabilityDays}
-                    >
-                      All Days
-                    </button>
-                    {DAY_OPTIONS.map((day) => (
-                      <button
-                        key={day}
-                        type="button"
-                        className={`admin-slot-chip ${doctorForm.availabilityDays.includes(day) ? "active" : ""}`}
-                        onClick={() => handleToggleDoctorAvailabilityDay(day)}
-                      >
-                        {day}
-                      </button>
-                    ))}
-                  </div>
-
-                  <label htmlFor="doctor-time-slots">Time slots</label>
-                  <div className="admin-inline-time-grid">
-                    <select
-                      id="doctor-time-day"
-                      value={doctorForm.slotDay}
-                      onChange={(event) =>
-                        setDoctorForm((current) => ({
-                          ...current,
-                          slotDay: event.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">Select day</option>
-                      <option value="__ALL__">All selected days</option>
-                      {doctorForm.availabilityDays.map((day) => (
-                        <option key={day} value={day}>
-                          {day}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      id="doctor-time-slots"
-                      type="time"
-                      value={doctorForm.slotStart}
-                      onChange={(event) =>
-                        setDoctorForm((current) => ({
-                          ...current,
-                          slotStart: event.target.value,
-                        }))
-                      }
-                    />
-                    <input
-                      type="time"
-                      value={doctorForm.slotEnd}
-                      onChange={(event) =>
-                        setDoctorForm((current) => ({
-                          ...current,
-                          slotEnd: event.target.value,
-                        }))
-                      }
-                    />
-                    <button
-                      className="admin-btn secondary"
-                      onClick={handleAddDoctorTimeSlot}
-                      type="button"
-                    >
-                      Add Slot
-                    </button>
-                  </div>
-                  {doctorForm.timeSlots.length ? (
-                    <div className="admin-slot-list">
-                      {doctorForm.timeSlots.map((slot) => (
-                        <button
-                          key={`${slot.day}-${slot.label}`}
-                          className="admin-slot-chip"
-                          onClick={() => handleRemoveDoctorTimeSlot(slot)}
-                          type="button"
-                        >
-                          {slot.day} • {slot.label} ×
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="admin-field-hint">Pick a day, then add one or more time ranges for that day.</p>
-                  )}
-
-                  {doctorError ? <p className="admin-form-error">{doctorError}</p> : null}
-
-                  <button className="admin-btn primary" type="submit">
-                    Save doctor
-                  </button>
-                </form>
-              </article>
-
-              <DataTable
-                title="Doctor directory"
-                emptyText="No doctors available."
-                columns={[
-                  { key: "name", label: "Doctor" },
-                  {
-                    key: "specialization",
-                    label: "Specialization",
-                    render: (row) => formatSpecialization(row.specialization),
-                  },
-                  { key: "email", label: "Email" },
-                  { key: "phone", label: "Phone" },
-                  { key: "availability", label: "Availability" },
-                  {
-                    key: "patientsToday",
-                    label: "Patients today",
-                    render: (row) =>
-                      appointments.filter((appointment) => appointment.doctorId === row.id)
-                        .length,
-                  },
-                  {
-                    key: "approval",
-                    label: "Approval",
-                    render: (row) => (row.approved ? "Approved" : "Pending"),
-                  },
-                  {
-                    key: "actions",
-                    label: "Actions",
-                    render: (row) => (
-                      <button
-                        type="button"
-                        className="admin-btn admin-btn-danger"
-                        onClick={() => handleDeleteDoctor(row)}
-                      >
-                        Delete
-                      </button>
-                    ),
-                  },
-                ]} 
-                rows={filteredDoctors}
-              />
-            </div>
-          </section>
-
-          <section id="patients" className={`admin-page-section ${activeNav === "patients" ? "active" : ""}`}>
-            {/* Patients tab:
-                Lets the admin create new patient entries and review the registry list. */}
-            <SectionHeader
-              eyebrow="Patient Registry"
-              title="Add and manage patient records"
-              description="Capture essential admission details and keep recent records visible."
-            />
-
-            <div className="admin-management-grid">
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Add patient</h3>
-                </div>
-                <form className="admin-form-grid" onSubmit={handlePatientSubmit}>
-                  <label htmlFor="patient-name">Patient name</label>
-                  <input
-                    id="patient-name"
-                    type="text"
-                    value={patientForm.name}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({ ...current, name: event.target.value }))
-                    }
-                    placeholder="Enter patient name"
-                  />
-
-                  <label htmlFor="patient-age">Age</label>
-                  <input
-                    id="patient-age"
-                    type="number"
-                    min="0"
-                    value={patientForm.age}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({ ...current, age: event.target.value }))
-                    }
-                    placeholder="34"
-                  />
-
-                  <label htmlFor="patient-gender">Gender</label>
-                  <select
-                    id="patient-gender"
-                    value={patientForm.gender}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({ ...current, gender: event.target.value }))
-                    }
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-
-                  <label htmlFor="patient-phone">Phone</label>
-                  <input
-                    id="patient-phone"
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={patientForm.phone}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({
-                        ...current,
-                        phone: normalizePhoneNumber(event.target.value),
-                      }))
-                    }
-                    placeholder="9876543210"
-                  />
-
-                  <label htmlFor="patient-address">Address</label>
-                  <input
-                    id="patient-address"
-                    type="text"
-                    value={patientForm.address}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({
-                        ...current,
-                        address: event.target.value,
-                      }))
-                    }
-                    placeholder="City, State"
-                  />
-
-                  <label htmlFor="patient-blood-group">Blood Group</label>
-                  <input
-                    id="patient-blood-group"
-                    type="text"
-                    value={patientForm.bloodGroup}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({
-                        ...current,
-                        bloodGroup: event.target.value,
-                      }))
-                    }
-                    placeholder="B+"
-                  />
-
-                  <label htmlFor="patient-condition">Condition</label>
-                  <input
-                    id="patient-condition"
-                    type="text"
-                    value={patientForm.condition}
-                    onChange={(event) =>
-                      setPatientForm((current) => ({
-                        ...current,
-                        condition: event.target.value,
-                      }))
-                    }
-                    placeholder="Condition or reason for admission"
-                  />
-
-                  {patientError ? <p className="admin-form-error">{patientError}</p> : null}
-
-                  <button className="admin-btn primary" type="submit">
-                    Add patient
-                  </button>
-                </form>
-              </article>
-
-              <DataTable
-                title="Patient list"
-                emptyText="No patients found."
-                columns={[
-                  {
-                    key: "name",
-                    label: "Patient",
-                    render: (row) => getPatientDisplayName(row),
-                  },
-                  { key: "age", label: "Age" },
-                  { key: "gender", label: "Gender" },
-                  { key: "condition", label: "Condition" },
-                  { key: "phone", label: "Phone" },
-                ]}
-                rows={filteredPatients}
-              />
-            </div>
-          </section>
-
-          <section id="appointments" className={`admin-page-section ${activeNav === "appointments" ? "active" : ""}`}>
-            {/* Appointments tab:
-                Books appointments by combining patient selection, doctor selection, availability, and free slots. */}
-            <SectionHeader
-              eyebrow="Appointments"
-              title="Book and monitor appointments"
-              description="Schedule visits using active patients and doctors already in the system."
-            />
-
-            <div className="admin-management-grid">
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Book appointment</h3>
-                </div>
-                <form className="admin-form-grid" onSubmit={handleAppointmentSubmit}>
-                  <label htmlFor="appointment-patient">Patient</label>
-                  <select
-                    id="appointment-patient"
-                    value={appointmentForm.patientUid}
-                    onChange={(event) =>
-                      handleAppointmentPatientChange(event.target.value)
-                    }
-                  >
-                    <option value="">Select patient</option>
-                    {patientOptions.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label htmlFor="appointment-doctor">Doctor</label>
-                  <select
-                    id="appointment-doctor"
-                    value={appointmentForm.doctorId}
-                    onChange={(event) => handleAppointmentDoctorChange(event.target.value)}
-                  >
-                    <option value="">Select doctor</option>
-                    {doctorOptions.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        {doctor.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label htmlFor="appointment-department">Department</label>
-                  <input
-                    id="appointment-department"
-                    type="text"
-                    value={appointmentForm.department}
-                    readOnly
-                    placeholder="Auto-filled from doctor"
-                  />
-
-                  <label htmlFor="appointment-date">Date</label>
-                  <input
-                    id="appointment-date"
-                    type="date"
-                    value={appointmentForm.date}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        date: event.target.value,
-                      }))
-                    }
-                  />
-
-                  <label htmlFor="appointment-time">Time</label>
-                  <select
-                    id="appointment-time"
-                    value={appointmentForm.time}
-                    onChange={(event) =>
-                      setAppointmentForm((current) => ({
-                        ...current,
-                        time: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Select available slot</option>
-                    {availableAppointmentSlots.map((slot) => (
-                      <option key={`${slot.day}-${slot.time}`} value={slot.time}>
-                        {slot.display}
-                      </option>
-                    ))}
-                  </select>
-
-                  {appointmentError ? (
-                    <p className="admin-form-error">{appointmentError}</p>
-                  ) : null}
-
-                  <button className="admin-btn primary" type="submit">
-                    Book appointment
-                  </button>
-                </form>
-              </article>
-
-              <DataTable
-                title="Appointment schedule"
-                emptyText="No appointments found."
-                columns={[
-                  { key: "patient", label: "Patient" },
-                  { key: "doctor", label: "Doctor" },
-                  { key: "department", label: "Department" },
-                  {
-                    key: "date",
-                    label: "Date",
-                    render: (row) => formatDisplayDate(row.date),
-                  },
-                  { key: "time", label: "Time" },
-                  { key: "status", label: "Status" },
-                ]}
-                rows={filteredAppointments}
-              />
-            </div>
-          </section>
-
-          <section id="beds" className={`admin-page-section ${activeNav === "beds" ? "active" : ""}`}>
-            {/* Beds tab:
-                Updates local bed occupancy data for the admin operations view. */}
-            <SectionHeader
-              eyebrow="Bed Management"
-              title="Track occupancy and assign beds"
-              description="Update bed status for admissions, discharge readiness, and maintenance handling."
-            />
-
-            <div className="admin-management-grid">
-              <article className="admin-panel-card">
-                <div className="admin-card-top">
-                  <h3>Update bed status</h3>
-                </div>
-                <form className="admin-form-grid" onSubmit={handleBedSubmit}>
-                  <label htmlFor="bed-id">Bed</label>
-                  <select
-                    id="bed-id"
-                    value={bedForm.bedId}
-                    onChange={(event) =>
-                      setBedForm((current) => ({
-                        ...current,
-                        bedId: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Select bed</option>
-                    {beds.map((bed) => (
-                      <option key={bed.id} value={bed.id}>
-                        {bed.id} - {bed.ward}
-                      </option>
-                    ))}
-                  </select>
-
-                  <label htmlFor="bed-status">Status</label>
-                  <select
-                    id="bed-status"
-                    value={bedForm.status}
-                    onChange={(event) =>
-                      setBedForm((current) => ({
-                        ...current,
-                        status: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="Available">Available</option>
-                    <option value="Occupied">Occupied</option>
-                    <option value="Maintenance">Maintenance</option>
-                  </select>
-
-                  <label htmlFor="bed-patient">Assigned patient</label>
-                  <select
-                    id="bed-patient"
-                    value={bedForm.patient}
-                    onChange={(event) =>
-                      setBedForm((current) => ({
-                        ...current,
-                        patient: event.target.value,
-                      }))
-                    }
-                    disabled={bedForm.status !== "Occupied"}
-                  >
-                    <option value="">Select patient</option>
-                    {patientOptions.map((patient) => (
-                      <option key={patient.id} value={patient.name}>
-                        {patient.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  {bedError ? <p className="admin-form-error">{bedError}</p> : null}
-
-                  <button className="admin-btn primary" type="submit">
-                    Update bed
-                  </button>
-                </form>
-              </article>
-
-              <DataTable
-                title="Bed overview"
-                emptyText="No beds found."
-                columns={[
-                  { key: "id", label: "Bed ID" },
-                  { key: "ward", label: "Ward" },
-                  { key: "bedType", label: "Type" },
-                  {
-                    key: "patient",
-                    label: "Patient",
-                    render: (row) => row.patient || "Unassigned",
-                  },
-                  { key: "status", label: "Status" },
-                ]}
-                rows={filteredBeds}
-              />
-            </div>
-          </section>
-
-          <section id="billing" className={`admin-page-section ${activeNav === "billing" ? "active" : ""}`}>
-            {/* Billing tab:
-                Shows a high-level financial summary for invoices, collections, and pending payments. */}
-            <SectionHeader
-              eyebrow="Billing"
-              title="Revenue snapshot"
-              description="A quick operational summary for collections, pending invoices, and discharge billing."
-            />
-
-            <div className="admin-stats-grid compact">
-              <StatCard label="Invoices Raised" value="126" helper="Generated this month" />
-              <StatCard
-                label="Collected Revenue"
-                value="Rs. 18.4L"
-                helper="Across inpatient and outpatient billing"
-              />
-              <StatCard
-                label="Pending Payments"
-                value="Rs. 2.6L"
-                helper="Awaiting insurance and direct settlements"
-              />
-            </div>
-          </section>
-
-          <section id="inventory" className={`admin-page-section ${activeNav === "inventory" ? "active" : ""}`}>
-            {/* Inventory tab:
-                Uses the reusable table component to show stock thresholds and vendors. */}
-            <SectionHeader
-              eyebrow="Inventory"
-              title="Critical supplies watchlist"
-              description="Review low stock items and vendors to keep care delivery uninterrupted."
-            />
-
-            <DataTable
-              title="Inventory status"
-              emptyText="Inventory data unavailable."
-              columns={[
-                { key: "item", label: "Item" },
-                { key: "remaining", label: "Remaining" },
-                { key: "threshold", label: "Threshold" },
-                { key: "vendor", label: "Vendor" },
-              ]}
-              rows={filteredInventory}
-            />
-          </section>
+          <AdminInventorySection
+            active={activeNav === "inventory"}
+            filteredInventory={filteredInventory}
+          />
         </section>
       </div>
     </main>
