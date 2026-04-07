@@ -1,6 +1,7 @@
 # Hospital Management System
 
-Live site: [https://vithmsproject.vercel.app/](https://vithmsproject.vercel.app/)
+Live site: [https://hospital-management-system-ruddy-delta.vercel.app](https://hospital-management-system-ruddy-delta.vercel.app)
+
 
 A multi-portal hospital operations application built with React, Vite, Firebase Authentication, and Cloud Firestore.
 
